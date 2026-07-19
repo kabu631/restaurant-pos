@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Restaurant POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%); }
+    .pin-btn:active { transform: scale(0.92); }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <div class="w-full max-w-md">
+
+    <!-- Logo / Header -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full shadow-lg mb-4">
+        <span class="text-3xl">🍽️</span>
+      </div>
+      <h1 class="text-2xl font-bold text-white">Restaurant POS</h1>
+      <p class="text-blue-200 text-sm mt-1">रेस्टुरेन्ट व्यवस्थापन प्रणाली</p>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="flex bg-white/20 rounded-xl p-1 mb-6">
+      <button id="tab-password" onclick="showTab('password')"
+        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-blue-700 shadow">
+        Password Login
+      </button>
+      <button id="tab-pin" onclick="showTab('pin')"
+        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all text-white">
+        PIN Login (POS)
+      </button>
+    </div>
+
+    <!-- Password Login Form -->
+    <div id="form-password" class="bg-white rounded-2xl shadow-2xl p-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-6">Sign In / साइन इन</h2>
+
+      <div id="error-msg" class="hidden bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3 mb-4"></div>
+
+      <form onsubmit="doLogin(event)">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1">Restaurant Code / रेस्टुरेन्ट कोड</label>
+          <input id="restaurant-code" type="text" autocomplete="organization"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g. spice-garden  (leave blank for superadmin)" />
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1">Username / प्रयोगकर्ता नाम</label>
+          <input id="username" type="text" required autocomplete="username"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="admin" />
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-medium text-gray-600 mb-1">Password / पासवर्ड</label>
+          <input id="password" type="password" required autocomplete="current-password"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="••••••••" />
+        </div>
+        <button type="submit" id="login-btn"
+          class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded-lg transition-colors">
+          Login / लगइन
+        </button>
+      </form>
+      <p class="text-center text-sm text-gray-400 mt-5">
+        New restaurant?
+        <a href="/register" class="text-blue-600 hover:underline font-medium">Register here</a>
+      </p>
+    </div>
+
+    <!-- PIN Login Form -->
+    <div id="form-pin" class="hidden bg-white rounded-2xl shadow-2xl p-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-2">Quick PIN Login</h2>
+      <p class="text-gray-500 text-sm mb-4">Enter your 4-digit PIN / ४ अंकको PIN हाल्नुस्</p>
+
+      <div id="pin-error" class="hidden bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3 mb-3"></div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-600 mb-1">Restaurant Code</label>
+        <input id="pin-restaurant-code" type="text"
+          class="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="e.g. spice-garden" />
+      </div>
+
+      <!-- PIN display -->
+      <div class="flex justify-center gap-3 mb-6">
+        <div id="pin-d1" class="w-12 h-12 rounded-xl border-2 border-gray-300 flex items-center justify-center text-2xl font-bold text-gray-700 bg-gray-50 transition-all"></div>
+        <div id="pin-d2" class="w-12 h-12 rounded-xl border-2 border-gray-300 flex items-center justify-center text-2xl font-bold text-gray-700 bg-gray-50 transition-all"></div>
+        <div id="pin-d3" class="w-12 h-12 rounded-xl border-2 border-gray-300 flex items-center justify-center text-2xl font-bold text-gray-700 bg-gray-50 transition-all"></div>
+        <div id="pin-d4" class="w-12 h-12 rounded-xl border-2 border-gray-300 flex items-center justify-center text-2xl font-bold text-gray-700 bg-gray-50 transition-all"></div>
+      </div>
+
+      <!-- Number pad -->
+      <div class="grid grid-cols-3 gap-3">
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('1')">1</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('2')">2</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('3')">3</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('4')">4</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('5')">5</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('6')">6</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('7')">7</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('8')">8</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('9')">9</button>
+        <button class="pin-btn bg-red-100 hover:bg-red-200 text-red-600 font-bold text-xl py-4 rounded-xl transition-all col-span-1" onclick="pinClear()">✕</button>
+        <button class="pin-btn bg-gray-100 hover:bg-blue-50 text-gray-800 font-bold text-xl py-4 rounded-xl transition-all" onclick="pinPress('0')">0</button>
+        <button class="pin-btn bg-blue-700 hover:bg-blue-800 text-white font-bold text-xl py-4 rounded-xl transition-all" onclick="doPin()">✓</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let pinValue = '';
+
+    // Pre-fill restaurant code from URL param or localStorage
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = new URLSearchParams(window.location.search).get('restaurant')
+                    || localStorage.getItem('restaurant_code') || '';
+      document.getElementById('restaurant-code').value = saved;
+      document.getElementById('pin-restaurant-code').value = saved;
+    });
+
+    function showTab(tab) {
+      const isPin = tab === 'pin';
+      document.getElementById('form-password').classList.toggle('hidden', isPin);
+      document.getElementById('form-pin').classList.toggle('hidden', !isPin);
+      document.getElementById('tab-password').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${isPin ? 'text-white' : 'bg-white text-blue-700 shadow'}`;
+      document.getElementById('tab-pin').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${isPin ? 'bg-white text-blue-700 shadow' : 'text-white'}`;
+      pinValue = '';
+      updatePinDisplay();
+    }
+
+    function updatePinDisplay() {
+      for (let i = 1; i <= 4; i++) {
+        const el = document.getElementById(`pin-d${i}`);
+        el.textContent = pinValue.length >= i ? '●' : '';
+        el.classList.toggle('border-blue-500', pinValue.length >= i);
+        el.classList.toggle('border-gray-300', pinValue.length < i);
+      }
+    }
+
+    function pinPress(digit) {
+      if (pinValue.length < 4) {
+        pinValue += digit;
+        updatePinDisplay();
+        if (pinValue.length === 4) doPin();
+      }
+    }
+
+    function pinClear() {
+      pinValue = pinValue.slice(0, -1);
+      updatePinDisplay();
+    }
+
+    async function doPin() {
+      if (pinValue.length !== 4) return;
+      const errEl = document.getElementById('pin-error');
+      errEl.classList.add('hidden');
+      const restaurantCode = document.getElementById('pin-restaurant-code').value.trim();
+      if (!restaurantCode) {
+        errEl.textContent = 'Please enter the Restaurant Code above.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/pin-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: pinValue, restaurant_code: restaurantCode }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('token', data.access_token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('restaurant_code', restaurantCode);
+          window.location.href = '/dashboard';
+        } else {
+          errEl.textContent = data.detail || 'Invalid PIN';
+          errEl.classList.remove('hidden');
+          pinValue = '';
+          updatePinDisplay();
+        }
+      } catch {
+        errEl.textContent = 'Connection error. Try again.';
+        errEl.classList.remove('hidden');
+        pinValue = '';
+        updatePinDisplay();
+      }
+    }
+
+    async function doLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      const errEl = document.getElementById('error-msg');
+      btn.textContent = 'Signing in...';
+      btn.disabled = true;
+      errEl.classList.add('hidden');
+      const restaurantCode = document.getElementById('restaurant-code').value.trim();
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            restaurant_code: restaurantCode || null,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('token', data.access_token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          if (restaurantCode) localStorage.setItem('restaurant_code', restaurantCode);
+          // Superadmin goes to /admin, everyone else to /dashboard
+          window.location.href = data.user.role === 'superadmin' ? '/admin' : '/dashboard';
+        } else {
+          errEl.textContent = data.detail || 'Login failed. Check your credentials.';
+          errEl.classList.remove('hidden');
+        }
+      } catch {
+        errEl.textContent = 'Connection error. Is the server running?';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.textContent = 'Login / लगइन';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

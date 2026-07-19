@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu Management — Restaurant POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+  <!-- Top bar -->
+  <header class="bg-gray-900 text-white shadow px-4 py-2.5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/dashboard" class="text-gray-400 hover:text-white text-sm font-medium">🍽️</a>
+      <span class="text-gray-600">|</span>
+      <h1 class="font-bold">Menu Management</h1>
+      <span class="hidden md:flex items-center gap-1">
+        <a href="/orders" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Orders</a>
+        <a href="/inventory" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Inventory</a>
+        <a href="/billing" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Billing</a>
+      </span>
+    </div>
+    <button onclick="openItemModal()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg font-medium text-sm">
+      + Add Item
+    </button>
+  </header>
+
+  <div class="flex h-[calc(100vh-64px)]">
+
+    <!-- Sidebar: Categories -->
+    <aside class="w-64 bg-white shadow-sm p-4 overflow-y-auto flex-shrink-0">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Categories</h2>
+        <button onclick="openCatModal()" class="text-blue-600 hover:text-blue-800 text-sm font-medium">+ Add</button>
+      </div>
+
+      <ul id="category-list" class="space-y-1"></ul>
+    </aside>
+
+    <!-- Main: Menu Items -->
+    <main class="flex-1 p-6 overflow-y-auto">
+
+      <!-- Search + filter bar -->
+      <div class="flex gap-3 mb-5">
+        <input id="search" type="text" placeholder="Search items..." oninput="renderItems()"
+          class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <select id="filter-available" onchange="renderItems()"
+          class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+          <option value="">All Items</option>
+          <option value="1">Available</option>
+          <option value="0">Unavailable</option>
+        </select>
+      </div>
+
+      <div id="items-container"></div>
+    </main>
+  </div>
+
+  <!-- ===== ADD/EDIT ITEM MODAL ===== -->
+  <div id="item-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-5">
+          <h2 id="modal-title" class="text-lg font-bold text-gray-800">Add Menu Item</h2>
+          <button onclick="closeItemModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+
+        <form onsubmit="saveItem(event)" class="space-y-4">
+          <input type="hidden" id="item-id" />
+          <div class="grid grid-cols-2 gap-4">
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-600 mb-1">Item Name *</label>
+              <input id="item-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-600 mb-1">Nepali Name (नेपाली नाम)</label>
+              <input id="item-name-np" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Category *</label>
+              <select id="item-category" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Price (Rs.) *</label>
+              <input id="item-price" type="number" min="0" step="0.01" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Variant Type</label>
+              <input id="item-variant" placeholder="e.g. half/full, S/M/L" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Display Order</label>
+              <input id="item-order" type="number" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-600 mb-1">Description</label>
+              <textarea id="item-desc" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="item-vat" type="checkbox" checked class="w-4 h-4 accent-blue-700" />
+              <label class="text-sm text-gray-600">VAT Applicable (13%)</label>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="item-available" type="checkbox" checked class="w-4 h-4 accent-green-600" />
+              <label class="text-sm text-gray-600">Available Now</label>
+            </div>
+          </div>
+
+          <div id="modal-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+
+          <div class="flex gap-3 pt-2">
+            <button type="button" onclick="closeItemModal()" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" class="flex-1 bg-blue-700 hover:bg-blue-800 text-white py-2 rounded-lg text-sm font-medium">Save Item</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ADD CATEGORY MODAL ===== -->
+  <div id="cat-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-gray-800">Add Category</h2>
+        <button onclick="closeCatModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+      </div>
+      <form onsubmit="saveCategory(event)" class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Category Name *</label>
+          <input id="cat-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Display Order</label>
+          <input id="cat-order" type="number" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="flex gap-3 pt-1">
+          <button type="button" onclick="closeCatModal()" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium">Cancel</button>
+          <button type="submit" class="flex-1 bg-blue-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-800">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login';
+
+    const authHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+
+    let categories = [];
+    let items = [];
+    let activeCategoryId = null;
+
+    async function loadAll() {
+      const [catRes, itemRes] = await Promise.all([
+        fetch('/api/menu/categories', { headers: authHeaders }),
+        fetch('/api/menu/items', { headers: authHeaders }),
+      ]);
+      categories = await catRes.json();
+      items = await itemRes.json();
+      renderCategories();
+      renderItems();
+    }
+
+    function renderCategories() {
+      const ul = document.getElementById('category-list');
+      ul.innerHTML = `
+        <li>
+          <button onclick="filterCategory(null)"
+            class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                   ${activeCategoryId === null ? 'bg-blue-700 text-white' : 'text-gray-700 hover:bg-gray-100'}">
+            All Categories
+          </button>
+        </li>
+      `;
+      categories.forEach(cat => {
+        const count = items.filter(i => i.category_id === cat.id).length;
+        ul.innerHTML += `
+          <li>
+            <button onclick="filterCategory(${cat.id})"
+              class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex justify-between items-center
+                     ${activeCategoryId === cat.id ? 'bg-blue-700 text-white' : 'text-gray-700 hover:bg-gray-100'}">
+              <span>${cat.name}</span>
+              <span class="text-xs ${activeCategoryId === cat.id ? 'text-blue-200' : 'text-gray-400'}">${count}</span>
+            </button>
+          </li>`;
+      });
+    }
+
+    function filterCategory(id) {
+      activeCategoryId = id;
+      renderCategories();
+      renderItems();
+    }
+
+    function renderItems() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const avFilter = document.getElementById('filter-available').value;
+
+      let filtered = items.filter(item => {
+        const matchCat = activeCategoryId === null || item.category_id === activeCategoryId;
+        const matchSearch = !search || item.name.toLowerCase().includes(search) ||
+                            (item.name_np && item.name_np.includes(search));
+        const matchAv = avFilter === '' || (avFilter === '1' ? item.is_available : !item.is_available);
+        return matchCat && matchSearch && matchAv;
+      });
+
+      // Group by category
+      const grouped = {};
+      filtered.forEach(item => {
+        const cat = categories.find(c => c.id === item.category_id);
+        const key = cat ? cat.name : 'Uncategorized';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(item);
+      });
+
+      const container = document.getElementById('items-container');
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">🍽️</div><p>No items found</p></div>`;
+        return;
+      }
+
+      container.innerHTML = Object.entries(grouped).map(([catName, catItems]) => `
+        <div class="mb-8">
+          <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">${catName}</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            ${catItems.map(item => itemCard(item)).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function itemCard(item) {
+      const avail = item.is_available;
+      return `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold text-gray-800 truncate">${item.name}</p>
+              ${item.name_np ? `<p class="text-xs text-gray-400">${item.name_np}</p>` : ''}
+            </div>
+            <button onclick="toggleItem(${item.id})"
+              class="ml-2 flex-shrink-0 px-2 py-1 rounded-full text-xs font-semibold ${avail ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">
+              ${avail ? '● Available' : '○ Off'}
+            </button>
+          </div>
+
+          ${item.description ? `<p class="text-xs text-gray-500 mb-2 line-clamp-2">${item.description}</p>` : ''}
+
+          <div class="flex items-center justify-between mt-3">
+            <div>
+              <span class="text-lg font-bold text-gray-800">Rs. ${item.price.toLocaleString()}</span>
+              ${item.variant_type ? `<span class="ml-2 text-xs text-gray-400">${item.variant_type}</span>` : ''}
+            </div>
+            <div class="flex gap-1">
+              ${item.is_vat_applicable ? '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded">VAT</span>' : ''}
+            </div>
+          </div>
+
+          <div class="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+            <button onclick="loadProfit(${item.id})"
+              class="flex-1 text-xs text-gray-500 hover:text-green-600 font-medium py-1">
+              📊 Profit
+            </button>
+            <button onclick="openItemModal(${item.id})"
+              class="flex-1 text-xs text-blue-600 hover:text-blue-800 font-medium py-1">
+              ✏️ Edit
+            </button>
+          </div>
+        </div>`;
+    }
+
+    async function toggleItem(id) {
+      const res = await fetch(`/api/menu/items/${id}/toggle`, {
+        method: 'PATCH', headers: authHeaders
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const item = items.find(i => i.id === id);
+        if (item) item.is_available = data.is_available;
+        renderItems();
+      }
+    }
+
+    async function loadProfit(id) {
+      const res = await fetch(`/api/menu/items/${id}/profit`, { headers: authHeaders });
+      const d = await res.json();
+      const color = d.margin_percent >= 50 ? 'text-green-600' : d.margin_percent >= 30 ? 'text-yellow-600' : 'text-red-600';
+      alert(`📊 ${d.name}\n\nSelling Price: Rs. ${d.selling_price}\nCost to Make: Rs. ${d.cost_to_make}\nProfit: Rs. ${d.profit_per_dish}\nMargin: ${d.margin_percent}%${d.is_low_margin ? '\n⚠️ Low margin!' : ''}\n\n${d.ingredients.length === 0 ? 'No recipe linked yet.' : 'Ingredients: ' + d.ingredients.map(i => `${i.ingredient} (${i.quantity}${i.unit})`).join(', ')}`);
+    }
+
+    function openItemModal(editId = null) {
+      document.getElementById('item-modal').classList.remove('hidden');
+      document.getElementById('modal-title').textContent = editId ? 'Edit Menu Item' : 'Add Menu Item';
+      document.getElementById('modal-error').classList.add('hidden');
+
+      // Populate category dropdown
+      const sel = document.getElementById('item-category');
+      sel.innerHTML = '<option value="">Select...</option>' +
+        categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+      if (editId) {
+        const item = items.find(i => i.id === editId);
+        document.getElementById('item-id').value = item.id;
+        document.getElementById('item-name').value = item.name;
+        document.getElementById('item-name-np').value = item.name_np || '';
+        document.getElementById('item-category').value = item.category_id;
+        document.getElementById('item-price').value = item.price;
+        document.getElementById('item-variant').value = item.variant_type || '';
+        document.getElementById('item-order').value = item.display_order;
+        document.getElementById('item-desc').value = item.description || '';
+        document.getElementById('item-vat').checked = item.is_vat_applicable;
+        document.getElementById('item-available').checked = item.is_available;
+      } else {
+        document.getElementById('item-id').value = '';
+        document.getElementById('item-name').value = '';
+        document.getElementById('item-name-np').value = '';
+        document.getElementById('item-category').value = activeCategoryId || '';
+        document.getElementById('item-price').value = '';
+        document.getElementById('item-variant').value = '';
+        document.getElementById('item-order').value = '0';
+        document.getElementById('item-desc').value = '';
+        document.getElementById('item-vat').checked = true;
+        document.getElementById('item-available').checked = true;
+      }
+    }
+
+    function closeItemModal() {
+      document.getElementById('item-modal').classList.add('hidden');
+    }
+
+    async function saveItem(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('modal-error');
+      errEl.classList.add('hidden');
+
+      const id = document.getElementById('item-id').value;
+      const payload = {
+        category_id: parseInt(document.getElementById('item-category').value),
+        name: document.getElementById('item-name').value,
+        name_np: document.getElementById('item-name-np').value || null,
+        price: parseFloat(document.getElementById('item-price').value),
+        variant_type: document.getElementById('item-variant').value || null,
+        display_order: parseInt(document.getElementById('item-order').value) || 0,
+        description: document.getElementById('item-desc').value || null,
+        is_vat_applicable: document.getElementById('item-vat').checked,
+        is_available: document.getElementById('item-available').checked,
+      };
+
+      const res = await fetch(id ? `/api/menu/items/${id}` : '/api/menu/items', {
+        method: id ? 'PUT' : 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        if (id) {
+          const idx = items.findIndex(i => i.id === saved.id);
+          if (idx !== -1) items[idx] = saved;
+        } else {
+          items.push(saved);
+        }
+        closeItemModal();
+        renderItems();
+      } else {
+        const err = await res.json();
+        errEl.textContent = err.detail || 'Failed to save item.';
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    function openCatModal() {
+      document.getElementById('cat-name').value = '';
+      document.getElementById('cat-order').value = '0';
+      document.getElementById('cat-modal').classList.remove('hidden');
+    }
+
+    function closeCatModal() {
+      document.getElementById('cat-modal').classList.add('hidden');
+    }
+
+    async function saveCategory(e) {
+      e.preventDefault();
+      const res = await fetch('/api/menu/categories', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          name: document.getElementById('cat-name').value,
+          display_order: parseInt(document.getElementById('cat-order').value) || 0,
+          is_active: true,
+        }),
+      });
+      if (res.ok) {
+        const cat = await res.json();
+        categories.push(cat);
+        closeCatModal();
+        renderCategories();
+        renderItems();
+      }
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>

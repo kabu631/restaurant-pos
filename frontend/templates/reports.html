@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Revenue Reports — Restaurant POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { background:#f3f4f6; }
+    .tab-active   { background:#1d4ed8; color:#fff; }
+    .tab-inactive { background:#fff; color:#374151; }
+    .tab-inactive:hover { background:#eff6ff; }
+    .card { background:#fff; border-radius:.75rem; box-shadow:0 1px 3px rgba(0,0,0,.08); border:1px solid #e5e7eb; }
+    .stat-up   { color:#16a34a; }
+    .stat-down { color:#dc2626; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+    .fade-in { animation:fadeIn .25s ease forwards; }
+    .spinner-ring {
+      width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#1d4ed8;
+      border-radius:50%;animation:spin .7s linear infinite;
+    }
+    @keyframes spin { to{transform:rotate(360deg)} }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- ═══════════════════════════════ NAV ══════════════════════════════════════ -->
+<nav class="bg-gray-900 text-white px-6 py-3 flex items-center justify-between shadow shrink-0">
+  <div class="flex items-center gap-3">
+    <a href="/dashboard" class="text-gray-400 hover:text-white text-xl">🍽️</a>
+    <span class="text-gray-600">|</span>
+    <span class="font-bold text-lg">Revenue Reports</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <span id="nav-user" class="text-sm text-gray-300 hidden sm:block"></span>
+    <!-- Export dropdown -->
+    <div class="relative">
+      <button id="export-btn" onclick="toggleExport()"
+        class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5">
+        ↓ Export
+      </button>
+      <div id="export-menu"
+        class="hidden absolute right-0 mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden text-sm">
+        <a href="#" onclick="doExport('sales');return false"
+          class="flex items-center gap-2 px-4 py-3 text-gray-700 hover:bg-blue-50">
+          📋 Sales Report (CSV)
+        </a>
+        <a href="#" onclick="doExport('items');return false"
+          class="flex items-center gap-2 px-4 py-3 text-gray-700 hover:bg-blue-50">
+          🍽️ Item-wise Report (CSV)
+        </a>
+        <a href="#" onclick="doExport('vat');return false"
+          class="flex items-center gap-2 px-4 py-3 text-gray-700 hover:bg-blue-50">
+          🏛️ VAT Report / Schedule-8 (CSV)
+        </a>
+        <a href="#" onclick="doExport('inventory');return false"
+          class="flex items-center gap-2 px-4 py-3 text-gray-700 hover:bg-blue-50">
+          📦 Inventory Report (CSV)
+        </a>
+        <a href="#" onclick="doExport('audit');return false"
+          class="flex items-center gap-2 px-4 py-3 text-gray-700 hover:bg-blue-50 border-t">
+          🔍 Audit Trail (CSV)
+        </a>
+      </div>
+    </div>
+    <button onclick="logout()"
+      class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm font-medium">
+      Logout
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════ MAIN ══════════════════════════════════════ -->
+<main class="flex-1 p-5 max-w-7xl mx-auto w-full">
+
+  <!-- ── Period tabs + date picker ─────────────────────────────────────────── -->
+  <div class="card p-4 mb-5 flex flex-wrap items-center gap-4">
+    <!-- Period tabs -->
+    <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+      <button onclick="setPeriod('daily')"    data-period="daily"    class="period-tab tab-inactive px-4 py-1.5 rounded-md text-sm font-semibold transition-all">Daily</button>
+      <button onclick="setPeriod('weekly')"   data-period="weekly"   class="period-tab tab-inactive px-4 py-1.5 rounded-md text-sm font-semibold transition-all">Weekly</button>
+      <button onclick="setPeriod('monthly')"  data-period="monthly"  class="period-tab tab-active  px-4 py-1.5 rounded-md text-sm font-semibold transition-all">Monthly</button>
+      <button onclick="setPeriod('yearly')"   data-period="yearly"   class="period-tab tab-inactive px-4 py-1.5 rounded-md text-sm font-semibold transition-all">Yearly</button>
+    </div>
+
+    <!-- Date picker (context-sensitive) -->
+    <div id="picker-daily"   class="hidden flex items-center gap-2">
+      <label class="text-sm text-gray-500">Date:</label>
+      <input id="pick-date" type="date" oninput="loadData()"
+        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+    </div>
+    <div id="picker-weekly"  class="hidden flex items-center gap-2">
+      <label class="text-sm text-gray-500">Any date in week:</label>
+      <input id="pick-week-date" type="date" oninput="loadData()"
+        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+    </div>
+    <div id="picker-monthly" class="flex items-center gap-2">
+      <label class="text-sm text-gray-500">Month:</label>
+      <select id="pick-month" onchange="loadData()"
+        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <option value="1">January</option><option value="2">February</option>
+        <option value="3">March</option><option value="4">April</option>
+        <option value="5">May</option><option value="6">June</option>
+        <option value="7">July</option><option value="8">August</option>
+        <option value="9">September</option><option value="10">October</option>
+        <option value="11">November</option><option value="12">December</option>
+      </select>
+      <select id="pick-year" onchange="loadData()"
+        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+      </select>
+    </div>
+    <div id="picker-yearly"  class="hidden flex items-center gap-2">
+      <label class="text-sm text-gray-500">Fiscal Year:</label>
+      <select id="pick-fy" onchange="loadData()"
+        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+      </select>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loading-spin" class="ml-auto hidden"><div class="spinner-ring"></div></div>
+    <span id="period-label" class="ml-auto text-sm font-semibold text-gray-500 hidden sm:block"></span>
+  </div>
+
+  <!-- ── Comparison banner ──────────────────────────────────────────────────── -->
+  <div id="comparison-banner" class="card p-4 mb-5 hidden">
+    <div class="flex flex-wrap items-center gap-6">
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">vs <span id="cmp-prev-label">—</span></p>
+        <div class="flex items-center gap-4">
+          <div>
+            <p class="text-xs text-gray-500">Revenue</p>
+            <p class="text-lg font-bold text-gray-800" id="cmp-prev-rev">—</p>
+          </div>
+          <div class="text-2xl text-gray-300">→</div>
+          <div>
+            <p class="text-xs text-gray-500">Revenue</p>
+            <p class="text-lg font-bold text-gray-800" id="cmp-cur-rev">—</p>
+          </div>
+          <div id="cmp-rev-pct" class="text-xl font-bold px-3 py-1 rounded-lg"></div>
+        </div>
+      </div>
+      <div class="border-l pl-6">
+        <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Orders</p>
+        <div class="flex items-center gap-3">
+          <span class="text-gray-500 text-sm" id="cmp-prev-orders">—</span>
+          <span class="text-gray-300">→</span>
+          <span class="font-bold text-gray-800" id="cmp-cur-orders">—</span>
+          <span id="cmp-ord-pct" class="text-sm font-bold px-2 py-0.5 rounded"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Summary cards ─────────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+    <div class="card p-5 fade-in">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Revenue</p>
+      <p class="text-2xl font-bold text-gray-800 mt-1" id="s-revenue">—</p>
+      <p class="text-xs text-green-600 mt-1" id="s-revenue-sub">0 bills</p>
+    </div>
+    <div class="card p-5 fade-in">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Orders</p>
+      <p class="text-2xl font-bold text-gray-800 mt-1" id="s-orders">—</p>
+      <p class="text-xs text-gray-500 mt-1" id="s-avg-order">Avg: —</p>
+    </div>
+    <div class="card p-5 fade-in">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">VAT Collected</p>
+      <p class="text-2xl font-bold text-gray-800 mt-1" id="s-vat">—</p>
+      <p class="text-xs text-gray-500 mt-1" id="s-service">Service: —</p>
+    </div>
+    <div class="card p-5 fade-in">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Discount</p>
+      <p class="text-2xl font-bold text-gray-800 mt-1" id="s-discount">—</p>
+      <p class="text-xs text-gray-500 mt-1">Discounts given</p>
+    </div>
+  </div>
+
+  <!-- ── Revenue trend chart ────────────────────────────────────────────────── -->
+  <div class="card p-5 mb-5 fade-in">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Revenue Trend</h2>
+    <div class="relative" style="height:260px">
+      <canvas id="chart-trend"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Bottom row: Payment + Order type + Top items ─────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+
+    <!-- Payment method pie -->
+    <div class="card p-5 fade-in">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">By Payment Method</h2>
+      <div class="relative" style="height:200px">
+        <canvas id="chart-payment"></canvas>
+      </div>
+      <div id="payment-legend" class="mt-3 space-y-1.5"></div>
+    </div>
+
+    <!-- Order type -->
+    <div class="card p-5 fade-in">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">By Order Type</h2>
+      <div class="relative" style="height:200px">
+        <canvas id="chart-order-type"></canvas>
+      </div>
+      <div id="order-type-legend" class="mt-3 space-y-1.5"></div>
+    </div>
+
+    <!-- Top 5 items -->
+    <div class="card p-5 fade-in">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Top 5 Items</h2>
+      <div id="top-items-list" class="space-y-2"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── Auth guard ──────────────────────────────────────────────────────────────
+  const token = localStorage.getItem('token');
+  const me    = JSON.parse(localStorage.getItem('user') || '{}');
+  if (!token) window.location.href = '/login';
+  document.getElementById('nav-user').textContent = me.full_name || me.username || '';
+
+  const fmt = n => `NPR ${Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+
+  // ── State ───────────────────────────────────────────────────────────────────
+  let currentPeriod = 'monthly';
+  let lastData      = null;
+  let charts        = {};
+
+  // ── Pickers init ────────────────────────────────────────────────────────────
+  (function initPickers() {
+    const now = new Date();
+    // Daily / weekly: set today as default
+    document.getElementById('pick-date').value      = now.toISOString().slice(0, 10);
+    document.getElementById('pick-week-date').value = now.toISOString().slice(0, 10);
+    // Monthly: current month/year
+    document.getElementById('pick-month').value = now.getMonth() + 1;
+    const yearSel = document.getElementById('pick-year');
+    for (let y = now.getFullYear(); y >= now.getFullYear() - 5; y--) {
+      const o = document.createElement('option');
+      o.value = y; o.textContent = y;
+      yearSel.appendChild(o);
+    }
+    yearSel.value = now.getFullYear();
+    // Yearly: current and previous 5 fiscal years
+    const fySel = document.getElementById('pick-fy');
+    const curFY = currentFiscalYear(now);
+    for (let i = 0; i < 5; i++) {
+      const bs = parseInt(curFY) - i;
+      const label = `${bs}/${String(bs + 1).slice(-2)}`;
+      const o = document.createElement('option');
+      o.value = label; o.textContent = label;
+      fySel.appendChild(o);
+    }
+  })();
+
+  function currentFiscalYear(now = new Date()) {
+    const m = now.getMonth() + 1, d = now.getDate(), y = now.getFullYear();
+    const bs = (m > 7 || (m === 7 && d >= 16)) ? y + 57 : y + 56;
+    return String(bs);
+  }
+
+  // ── Period switching ────────────────────────────────────────────────────────
+  function setPeriod(p) {
+    currentPeriod = p;
+    document.querySelectorAll('.period-tab').forEach(btn => {
+      const active = btn.dataset.period === p;
+      btn.className = `period-tab ${active ? 'tab-active' : 'tab-inactive'} px-4 py-1.5 rounded-md text-sm font-semibold transition-all`;
+    });
+    ['daily','weekly','monthly','yearly'].forEach(x => {
+      document.getElementById(`picker-${x}`).classList.toggle('hidden', x !== p);
+    });
+    loadData();
+  }
+
+  // ── Build API URL ───────────────────────────────────────────────────────────
+  function buildUrl() {
+    const base = '/api/reports/revenue';
+    switch (currentPeriod) {
+      case 'daily':
+        return `${base}?period=daily&date=${document.getElementById('pick-date').value}`;
+      case 'weekly':
+        return `${base}?period=weekly&date=${document.getElementById('pick-week-date').value}`;
+      case 'monthly': {
+        const m = document.getElementById('pick-month').value;
+        const y = document.getElementById('pick-year').value;
+        return `${base}?period=monthly&month=${m}&year=${y}`;
+      }
+      case 'yearly':
+        return `${base}?period=yearly&fy=${encodeURIComponent(document.getElementById('pick-fy').value)}`;
+    }
+  }
+
+  function buildComparisonUrl() {
+    if (currentPeriod === 'daily') return null;
+    return `/api/reports/revenue/comparison?period=${currentPeriod}`;
+  }
+
+  // ── Load data ───────────────────────────────────────────────────────────────
+  async function loadData() {
+    document.getElementById('loading-spin').classList.remove('hidden');
+    try {
+      const url = buildUrl();
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      lastData = data;
+      renderStats(data);
+      renderTrendChart(data);
+      renderPaymentChart(data);
+      renderOrderTypeChart(data);
+      renderTopItems(data);
+      document.getElementById('period-label').textContent = data.label;
+
+      // Comparison (async, non-blocking)
+      const cmpUrl = buildComparisonUrl();
+      if (cmpUrl) {
+        fetch(cmpUrl, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null).then(d => d && renderComparison(d));
+      } else {
+        document.getElementById('comparison-banner').classList.add('hidden');
+      }
+    } catch (e) {
+      console.error('Report load error:', e);
+    } finally {
+      document.getElementById('loading-spin').classList.add('hidden');
+    }
+  }
+
+  // ── Render stats cards ──────────────────────────────────────────────────────
+  function renderStats(d) {
+    document.getElementById('s-revenue').textContent = fmt(d.total_revenue);
+    document.getElementById('s-revenue-sub').textContent = `${d.total_orders} bills`;
+    document.getElementById('s-orders').textContent = d.total_orders;
+    document.getElementById('s-avg-order').textContent = `Avg: ${fmt(d.avg_order_value)}`;
+    document.getElementById('s-vat').textContent = fmt(d.total_vat);
+    document.getElementById('s-service').textContent = `Service: ${fmt(d.total_service)}`;
+    document.getElementById('s-discount').textContent = fmt(d.total_discount);
+  }
+
+  // ── Trend chart ─────────────────────────────────────────────────────────────
+  function renderTrendChart(d) {
+    const labels   = d.breakdown.map(x => x.label);
+    const revenues = d.breakdown.map(x => x.revenue);
+    const orders   = d.breakdown.map(x => x.orders);
+
+    destroyChart('chart-trend');
+    const ctx = document.getElementById('chart-trend').getContext('2d');
+    charts['chart-trend'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Revenue (NPR)',
+            data: revenues,
+            borderColor: '#1d4ed8',
+            backgroundColor: 'rgba(29,78,216,.08)',
+            fill: true,
+            tension: .35,
+            pointRadius: labels.length > 20 ? 0 : 3,
+            pointHoverRadius: 5,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Orders',
+            data: orders,
+            borderColor: '#16a34a',
+            backgroundColor: 'transparent',
+            borderDash: [4,3],
+            tension: .35,
+            pointRadius: labels.length > 20 ? 0 : 3,
+            pointHoverRadius: 4,
+            yAxisID: 'y1',
+          },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top' } },
+        scales: {
+          y: {
+            type: 'linear', position: 'left',
+            ticks: { callback: v => `NPR ${Number(v).toLocaleString()}`, font: { size: 10 } },
+            grid: { color: '#f3f4f6' },
+          },
+          y1: {
+            type: 'linear', position: 'right', grid: { drawOnChartArea: false },
+            ticks: { font: { size: 10 } },
+          },
+          x: { ticks: { maxTicksLimit: 15, font: { size: 10 } } },
+        },
+      },
+    });
+  }
+
+  // ── Payment method pie ──────────────────────────────────────────────────────
+  const METHOD_COLORS = {
+    cash: '#3b82f6', card: '#8b5cf6', qr: '#10b981',
+    esewa: '#f59e0b', khalti: '#ec4899', unknown: '#9ca3af',
+  };
+  const METHOD_LABELS = {
+    cash:'Cash', card:'Card', qr:'QR / FonePay',
+    esewa:'eSewa', khalti:'Khalti', unknown:'Other',
+  };
+
+  function renderPaymentChart(d) {
+    const entries = Object.entries(d.by_payment_method).filter(([,v]) => v > 0);
+    const labels  = entries.map(([k]) => METHOD_LABELS[k] || k);
+    const values  = entries.map(([,v]) => v);
+    const colors  = entries.map(([k]) => METHOD_COLORS[k] || '#9ca3af');
+    const total   = values.reduce((a,b) => a + b, 0);
+
+    destroyChart('chart-payment');
+    const ctx = document.getElementById('chart-payment').getContext('2d');
+    charts['chart-payment'] = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        cutout: '60%',
+      },
+    });
+
+    document.getElementById('payment-legend').innerHTML = entries.map(([k, v]) => `
+      <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-full" style="background:${METHOD_COLORS[k]||'#9ca3af'}"></div>
+          <span class="text-gray-600">${METHOD_LABELS[k]||k}</span>
+        </div>
+        <span class="font-semibold text-gray-700">${total > 0 ? Math.round(v/total*100) : 0}%</span>
+      </div>`).join('');
+  }
+
+  // ── Order type doughnut ─────────────────────────────────────────────────────
+  const TYPE_COLORS = { dine_in:'#1d4ed8', takeaway:'#f59e0b', delivery:'#16a34a' };
+  const TYPE_LABELS = { dine_in:'Dine In', takeaway:'Takeaway', delivery:'Delivery' };
+
+  function renderOrderTypeChart(d) {
+    const entries = Object.entries(d.by_order_type).filter(([,v]) => v > 0);
+    const labels  = entries.map(([k]) => TYPE_LABELS[k] || k);
+    const values  = entries.map(([,v]) => v);
+    const colors  = entries.map(([k]) => TYPE_COLORS[k] || '#9ca3af');
+    const total   = values.reduce((a,b) => a + b, 0);
+
+    destroyChart('chart-order-type');
+    const ctx = document.getElementById('chart-order-type').getContext('2d');
+    charts['chart-order-type'] = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        cutout: '60%',
+      },
+    });
+
+    document.getElementById('order-type-legend').innerHTML = entries.map(([k, v]) => `
+      <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-full" style="background:${TYPE_COLORS[k]||'#9ca3af'}"></div>
+          <span class="text-gray-600">${TYPE_LABELS[k]||k}</span>
+        </div>
+        <span class="font-semibold text-gray-700">${total > 0 ? Math.round(v/total*100) : 0}%</span>
+      </div>`).join('');
+  }
+
+  // ── Top items list ──────────────────────────────────────────────────────────
+  function renderTopItems(d) {
+    const el = document.getElementById('top-items-list');
+    if (!d.top_items || !d.top_items.length) {
+      el.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No sales data</p>';
+      return;
+    }
+    const maxQty = Math.max(...d.top_items.map(x => x.quantity), 1);
+    el.innerHTML = d.top_items.map((item, i) => `
+      <div>
+        <div class="flex justify-between text-xs mb-1">
+          <div>
+            <span class="font-semibold text-gray-700 mr-1">${i+1}.</span>
+            <span class="text-gray-700">${esc(item.name)}</span>
+            ${item.category ? `<span class="text-gray-400 ml-1">(${esc(item.category)})</span>` : ''}
+          </div>
+          <div class="text-right">
+            <span class="font-bold text-gray-800">${item.quantity}x</span>
+            <span class="text-gray-500 ml-1">${fmt(item.revenue)}</span>
+          </div>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-1.5">
+          <div class="bg-blue-500 h-1.5 rounded-full transition-all"
+            style="width:${Math.round(item.quantity/maxQty*100)}%"></div>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── Comparison banner ───────────────────────────────────────────────────────
+  function renderComparison(d) {
+    const banner = document.getElementById('comparison-banner');
+    banner.classList.remove('hidden');
+    document.getElementById('cmp-prev-label').textContent = d.previous_label;
+    document.getElementById('cmp-prev-rev').textContent   = fmt(d.previous_revenue);
+    document.getElementById('cmp-cur-rev').textContent    = fmt(d.current_revenue);
+    document.getElementById('cmp-prev-orders').textContent = d.previous_orders;
+    document.getElementById('cmp-cur-orders').textContent  = d.current_orders;
+
+    function pctBadge(pct, elId) {
+      const el = document.getElementById(elId);
+      if (pct === null) { el.textContent = 'N/A'; el.className = 'text-sm text-gray-400'; return; }
+      const up = pct >= 0;
+      el.textContent = `${up ? '▲' : '▼'} ${Math.abs(pct)}%`;
+      el.className = `text-sm font-bold px-2 py-0.5 rounded ${up ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`;
+    }
+    pctBadge(d.revenue_change_pct, 'cmp-rev-pct');
+    pctBadge(d.orders_change_pct,  'cmp-ord-pct');
+  }
+
+  // ── Chart lifecycle ─────────────────────────────────────────────────────────
+  function destroyChart(id) {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  }
+
+  // ── XSS escape ──────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Export dropdown ─────────────────────────────────────────────────────────
+  function toggleExport() {
+    document.getElementById('export-menu').classList.toggle('hidden');
+  }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#export-btn') && !e.target.closest('#export-menu')) {
+      document.getElementById('export-menu').classList.add('hidden');
+    }
+  });
+
+  function currentDateRange() {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    switch (currentPeriod) {
+      case 'daily': {
+        const d = document.getElementById('pick-date').value || today;
+        return { from: d, to: d };
+      }
+      case 'weekly': {
+        const d = new Date(document.getElementById('pick-week-date').value || today);
+        const mon = new Date(d); mon.setDate(d.getDate() - d.getDay() + 1);
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        return { from: mon.toISOString().slice(0,10), to: sun.toISOString().slice(0,10) };
+      }
+      case 'monthly': {
+        const m = String(document.getElementById('pick-month').value).padStart(2,'0');
+        const y = document.getElementById('pick-year').value;
+        const last = new Date(y, m, 0).getDate();
+        return { from: `${y}-${m}-01`, to: `${y}-${m}-${last}` };
+      }
+      case 'yearly': {
+        const fy = document.getElementById('pick-fy').value;
+        const bs = parseInt(fy);
+        const adStart = bs - 57;
+        return { from: `${adStart}-07-16`, to: `${adStart+1}-07-15` };
+      }
+    }
+  }
+
+  function doExport(type) {
+    document.getElementById('export-menu').classList.add('hidden');
+    const { from, to } = currentDateRange();
+    const headers = { Authorization: `Bearer ${token}` };
+    let url = '';
+
+    if (type === 'inventory') {
+      url = '/api/reports/export/inventory';
+    } else {
+      url = `/api/reports/export/${type}?from=${from}&to=${to}`;
+    }
+
+    // Trigger download via hidden anchor
+    fetch(url, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error(res.status);
+        const cd = res.headers.get('Content-Disposition') || '';
+        const match = cd.match(/filename="([^"]+)"/);
+        const filename = match ? match[1] : `${type}_report.csv`;
+        return res.blob().then(blob => ({ blob, filename }));
+      })
+      .then(({ blob, filename }) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(e => alert(`Export failed: ${e.message}`));
+  }
+
+  // ── Logout ──────────────────────────────────────────────────────────────────
+  function logout() {
+    localStorage.clear();
+    window.location.href = '/login';
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  setPeriod('monthly');
+</script>
+</body>
+</html>

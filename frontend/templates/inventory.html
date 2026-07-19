@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory — Restaurant POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Nav -->
+<nav class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between shadow">
+  <div class="flex items-center gap-3">
+    <a href="/dashboard" class="text-gray-400 hover:text-white text-sm font-medium">🍽️</a>
+    <span class="text-gray-600">|</span>
+    <span class="font-bold">Inventory</span>
+    <span class="hidden md:flex items-center gap-1">
+      <a href="/orders" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Orders</a>
+      <a href="/billing" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Billing</a>
+      <a href="/menu" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Menu</a>
+    </span>
+  </div>
+  <div class="flex items-center gap-3">
+    <span id="nav-user" class="text-sm text-gray-300"></span>
+    <button onclick="openAddIngredientModal()"
+      class="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-sm font-medium">
+      + Add Ingredient
+    </button>
+  </div>
+</nav>
+
+<!-- Tabs -->
+<div class="bg-white border-b px-6 flex shadow-sm">
+  <button onclick="setTab('ingredients')" data-tab="ingredients"
+    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600">
+    Ingredients
+  </button>
+  <button onclick="setTab('profit')" data-tab="profit"
+    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-800">
+    Profit Report
+  </button>
+</div>
+
+<div class="p-6 max-w-6xl mx-auto">
+
+  <!-- Summary cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="summary-cards">
+    <div class="bg-white rounded-xl shadow p-4">
+      <p class="text-xs text-gray-500 mb-1">Total Ingredients</p>
+      <p id="s-total" class="text-2xl font-bold text-gray-800">—</p>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+      <p class="text-xs text-gray-500 mb-1">Stock Value</p>
+      <p id="s-value" class="text-2xl font-bold text-gray-800">—</p>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+      <p class="text-xs text-gray-500 mb-1">Low Stock Alerts</p>
+      <p id="s-low" class="text-2xl font-bold text-red-500">—</p>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+      <p class="text-xs text-gray-500 mb-1">Currency</p>
+      <p class="text-2xl font-bold text-gray-800">NPR</p>
+    </div>
+  </div>
+
+  <!-- ===== TAB: INGREDIENTS ===== -->
+  <div id="tab-ingredients">
+    <div class="flex items-center gap-3 mb-3">
+      <input id="ing-search" type="text" placeholder="Search ingredients…"
+        oninput="filterIngredients()"
+        class="border rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+      <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+        <input id="low-only" type="checkbox" class="accent-red-500" onchange="filterIngredients()" />
+        Low stock only
+      </label>
+    </div>
+
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b text-gray-500 text-left bg-gray-50 text-xs uppercase tracking-wide">
+            <th class="px-5 py-2.5 font-medium">Name</th>
+            <th class="px-3 py-2.5 font-medium">Unit</th>
+            <th class="px-3 py-2.5 font-medium text-right">Stock</th>
+            <th class="px-3 py-2.5 font-medium text-right">Min</th>
+            <th class="px-3 py-2.5 font-medium text-right">Cost/Unit</th>
+            <th class="px-3 py-2.5 font-medium text-right">Value</th>
+            <th class="px-3 py-2.5 font-medium">Supplier</th>
+            <th class="px-3 py-2.5 font-medium">Status</th>
+            <th class="px-3 py-2.5"></th>
+          </tr>
+        </thead>
+        <tbody id="ing-body"></tbody>
+      </table>
+      <div id="ing-empty" class="hidden py-12 text-center text-gray-400 text-sm">
+        No ingredients yet. Click <strong>+ Add Ingredient</strong> to get started.
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: PROFIT REPORT ===== -->
+  <div id="tab-profit" class="hidden">
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+      <div class="px-5 py-3 border-b flex items-center gap-3">
+        <span class="text-sm text-gray-500">Sorted by margin (lowest first) · only available items</span>
+        <button onclick="loadProfitReport()"
+          class="ml-auto text-sm text-blue-600 hover:underline">Refresh</button>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b text-gray-500 text-left bg-gray-50 text-xs uppercase tracking-wide">
+            <th class="px-5 py-2.5 font-medium">Item</th>
+            <th class="px-3 py-2.5 font-medium text-right">Selling Price</th>
+            <th class="px-3 py-2.5 font-medium text-right">Cost</th>
+            <th class="px-3 py-2.5 font-medium text-right">Profit</th>
+            <th class="px-3 py-2.5 font-medium text-right">Margin</th>
+            <th class="px-3 py-2.5 font-medium">Recipe</th>
+            <th class="px-3 py-2.5"></th>
+          </tr>
+        </thead>
+        <tbody id="profit-body"></tbody>
+      </table>
+      <div id="profit-empty" class="hidden py-12 text-center text-gray-400 text-sm">
+        No available menu items found.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== ADD INGREDIENT MODAL ===== -->
+<div id="add-ing-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-xl shadow-2xl w-96 p-6">
+    <h2 class="text-lg font-bold mb-4">Add Ingredient</h2>
+    <form onsubmit="submitAddIngredient(event)" class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Name</label>
+        <input id="ai-name" type="text" required
+          class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div class="flex gap-2">
+        <div class="flex-1">
+          <label class="block text-xs text-gray-500 mb-1">Unit</label>
+          <select id="ai-unit"
+            class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option>kg</option><option>gram</option><option>litre</option>
+            <option>ml</option><option>piece</option><option>packet</option>
+          </select>
+        </div>
+        <div class="flex-1">
+          <label class="block text-xs text-gray-500 mb-1">Current Stock</label>
+          <input id="ai-stock" type="number" step="0.01" min="0" value="0"
+            class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <div class="flex-1">
+          <label class="block text-xs text-gray-500 mb-1">Min Stock (alert)</label>
+          <input id="ai-min" type="number" step="0.01" min="0" value="0"
+            class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        </div>
+        <div class="flex-1">
+          <label class="block text-xs text-gray-500 mb-1">Cost per Unit (NPR)</label>
+          <input id="ai-cost" type="number" step="0.01" min="0" value="0"
+            class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Supplier</label>
+        <input id="ai-supplier" type="text" placeholder="Optional"
+          class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div id="ai-error" class="hidden text-red-600 text-xs"></div>
+      <div class="flex gap-3 pt-1">
+        <button type="button" onclick="closeAddIngredientModal()"
+          class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">Cancel</button>
+        <button type="submit"
+          class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
+          Add
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== RESTOCK MODAL ===== -->
+<div id="restock-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-xl shadow-2xl w-80 p-6">
+    <h2 class="text-lg font-bold mb-1">Restock</h2>
+    <p id="rs-ing-name" class="text-sm text-gray-500 mb-4"></p>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Quantity to Add</label>
+        <input id="rs-qty" type="number" step="0.01" min="0.01"
+          class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Cost per Unit (NPR)</label>
+        <input id="rs-cost" type="number" step="0.01" min="0"
+          class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Supplier</label>
+        <input id="rs-supplier" type="text" placeholder="Optional"
+          class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+    </div>
+    <div class="flex gap-3 pt-4">
+      <button onclick="closeRestockModal()"
+        class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">Cancel</button>
+      <button onclick="submitRestock()"
+        class="flex-1 bg-green-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-700">
+        Restock
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RECIPE MODAL ===== -->
+<div id="recipe-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-xl shadow-2xl w-[480px] p-6 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 id="rm-title" class="text-lg font-bold"></h2>
+        <p id="rm-sub" class="text-xs text-gray-400"></p>
+      </div>
+      <button onclick="closeRecipeModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+    </div>
+
+    <!-- Recipe items -->
+    <table class="w-full text-sm mb-4">
+      <thead>
+        <tr class="border-b text-xs text-gray-500">
+          <th class="pb-1.5 text-left">Ingredient</th>
+          <th class="pb-1.5 text-right">Qty</th>
+          <th class="pb-1.5 text-left pl-2">Unit</th>
+          <th class="pb-1.5 text-right">Cost</th>
+          <th class="pb-1.5"></th>
+        </tr>
+      </thead>
+      <tbody id="rm-body"></tbody>
+    </table>
+
+    <!-- Totals -->
+    <div class="border-t pt-3 mb-4 space-y-1 text-sm">
+      <div class="flex justify-between text-gray-600">
+        <span>Total Cost</span><span id="rm-cost"></span>
+      </div>
+      <div class="flex justify-between text-gray-600">
+        <span>Selling Price</span><span id="rm-price"></span>
+      </div>
+      <div class="flex justify-between font-bold">
+        <span>Profit / Margin</span><span id="rm-margin"></span>
+      </div>
+    </div>
+
+    <!-- Add ingredient to recipe -->
+    <div class="border-t pt-3">
+      <p class="text-xs font-medium text-gray-500 mb-2">Add Ingredient to Recipe</p>
+      <div class="flex gap-2">
+        <select id="rm-ing-sel"
+          class="flex-1 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="">— ingredient —</option>
+        </select>
+        <input id="rm-qty" type="number" step="0.001" min="0.001" placeholder="Qty"
+          class="w-20 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <select id="rm-unit"
+          class="w-20 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <option>g</option><option>kg</option><option>ml</option>
+          <option>litre</option><option>piece</option>
+        </select>
+      </div>
+      <button onclick="addRecipeIngredient()"
+        class="mt-2 w-full bg-blue-600 text-white rounded-lg py-1.5 text-sm hover:bg-blue-700">
+        Add to Recipe
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  if (!token) window.location.href = '/login';
+
+  let allIngredients = [];
+  let currentRestockId = null;
+  let currentRecipeItemId = null;
+
+  async function api(path, opts = {}) {
+    return fetch(path, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers||{}) },
+      ...opts,
+    });
+  }
+
+  // ---- Init ----
+  async function init() {
+    const [userRes, summaryRes] = await Promise.all([
+      api('/api/auth/me'),
+      api('/api/inventory/summary'),
+    ]);
+    const user = await userRes.json();
+    document.getElementById('nav-user').textContent = `${user.full_name} (${user.role})`;
+
+    const summary = await summaryRes.json();
+    document.getElementById('s-total').textContent = summary.total_ingredients;
+    document.getElementById('s-value').textContent = `NPR ${summary.total_stock_value.toFixed(2)}`;
+    document.getElementById('s-low').textContent = summary.low_stock_count;
+
+    await loadIngredients();
+  }
+
+  // ---- Tabs ----
+  function setTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      const active = b.dataset.tab === tab;
+      b.classList.toggle('border-blue-600', active);
+      b.classList.toggle('text-blue-600', active);
+      b.classList.toggle('border-transparent', !active);
+      b.classList.toggle('text-gray-500', !active);
+    });
+    document.getElementById('tab-ingredients').classList.toggle('hidden', tab !== 'ingredients');
+    document.getElementById('tab-profit').classList.toggle('hidden', tab !== 'profit');
+    if (tab === 'profit') loadProfitReport();
+  }
+
+  // ---- Ingredients ----
+  async function loadIngredients() {
+    const res = await api('/api/inventory/ingredients');
+    allIngredients = await res.json();
+    renderIngredients(allIngredients);
+  }
+
+  function filterIngredients() {
+    const search = document.getElementById('ing-search').value.toLowerCase();
+    const lowOnly = document.getElementById('low-only').checked;
+    let list = allIngredients;
+    if (search) list = list.filter(i => i.name.toLowerCase().includes(search));
+    if (lowOnly) list = list.filter(i => i.is_low_stock);
+    renderIngredients(list);
+  }
+
+  function renderIngredients(list) {
+    const body = document.getElementById('ing-body');
+    const empty = document.getElementById('ing-empty');
+    if (list.length === 0) {
+      body.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    body.innerHTML = list.map(i => `
+      <tr class="border-b hover:bg-gray-50">
+        <td class="px-5 py-2.5 font-medium text-gray-800">${i.name}</td>
+        <td class="px-3 py-2.5 text-gray-500">${i.unit}</td>
+        <td class="px-3 py-2.5 text-right ${i.is_low_stock ? 'text-red-600 font-semibold' : 'text-gray-700'}">
+          ${i.current_stock}
+        </td>
+        <td class="px-3 py-2.5 text-right text-gray-500">${i.minimum_stock}</td>
+        <td class="px-3 py-2.5 text-right text-gray-600">${i.cost_per_unit.toFixed(2)}</td>
+        <td class="px-3 py-2.5 text-right text-gray-600">${i.stock_value.toFixed(2)}</td>
+        <td class="px-3 py-2.5 text-gray-500 text-xs">${i.supplier_name || '—'}</td>
+        <td class="px-3 py-2.5">
+          ${i.is_low_stock
+            ? '<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">Low Stock</span>'
+            : '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">OK</span>'}
+        </td>
+        <td class="px-3 py-2.5">
+          <div class="flex gap-1">
+            <button onclick="openRestock(${i.id}, '${i.name.replace(/'/g,"\\'")}', ${i.cost_per_unit})"
+              class="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded hover:bg-green-100">
+              Restock
+            </button>
+            <button onclick="openRecipeModal(${i.id})" style="display:none"></button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  // ---- Add ingredient ----
+  function openAddIngredientModal() {
+    document.getElementById('add-ing-modal').classList.remove('hidden');
+    document.getElementById('ai-error').classList.add('hidden');
+  }
+  function closeAddIngredientModal() {
+    document.getElementById('add-ing-modal').classList.add('hidden');
+  }
+  async function submitAddIngredient(e) {
+    e.preventDefault();
+    const errEl = document.getElementById('ai-error');
+    errEl.classList.add('hidden');
+    const body = {
+      name: document.getElementById('ai-name').value.trim(),
+      unit: document.getElementById('ai-unit').value,
+      current_stock: parseFloat(document.getElementById('ai-stock').value) || 0,
+      minimum_stock: parseFloat(document.getElementById('ai-min').value) || 0,
+      cost_per_unit: parseFloat(document.getElementById('ai-cost').value) || 0,
+      supplier_name: document.getElementById('ai-supplier').value || null,
+    };
+    const res = await api('/api/inventory/ingredients', { method: 'POST', body: JSON.stringify(body) });
+    if (res.ok) {
+      closeAddIngredientModal();
+      await loadIngredients();
+      await init();
+    } else {
+      const d = await res.json();
+      errEl.textContent = d.detail || 'Failed to add ingredient';
+      errEl.classList.remove('hidden');
+    }
+  }
+
+  // ---- Restock ----
+  function openRestock(id, name, currentCost) {
+    currentRestockId = id;
+    document.getElementById('rs-ing-name').textContent = name;
+    document.getElementById('rs-cost').value = currentCost;
+    document.getElementById('rs-qty').value = '';
+    document.getElementById('rs-supplier').value = '';
+    document.getElementById('restock-modal').classList.remove('hidden');
+  }
+  function closeRestockModal() {
+    document.getElementById('restock-modal').classList.add('hidden');
+  }
+  async function submitRestock() {
+    const qty = parseFloat(document.getElementById('rs-qty').value);
+    const cost = parseFloat(document.getElementById('rs-cost').value);
+    if (!qty || qty <= 0) { alert('Enter a valid quantity.'); return; }
+    const body = {
+      ingredient_id: currentRestockId,
+      quantity: qty,
+      cost_per_unit: cost,
+      supplier_name: document.getElementById('rs-supplier').value || null,
+    };
+    const res = await api(`/api/inventory/ingredients/${currentRestockId}/restock`,
+      { method: 'POST', body: JSON.stringify(body) });
+    if (res.ok) {
+      closeRestockModal();
+      await loadIngredients();
+      await init();
+    } else {
+      const d = await res.json();
+      alert(d.detail || 'Restock failed');
+    }
+  }
+
+  // ---- Profit Report ----
+  async function loadProfitReport() {
+    const res = await api('/api/inventory/profit-report');
+    const report = await res.json();
+    const body = document.getElementById('profit-body');
+    const empty = document.getElementById('profit-empty');
+
+    if (report.length === 0) {
+      body.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+
+    body.innerHTML = report.map(r => {
+      const marginColor = r.margin_percent >= 50 ? 'text-green-600'
+        : r.margin_percent >= 30 ? 'text-yellow-600'
+        : 'text-red-600';
+      return `
+        <tr class="border-b hover:bg-gray-50">
+          <td class="px-5 py-2.5 font-medium text-gray-800">${r.name}</td>
+          <td class="px-3 py-2.5 text-right text-gray-600">NPR ${r.price.toFixed(2)}</td>
+          <td class="px-3 py-2.5 text-right text-gray-600">NPR ${r.cost.toFixed(2)}</td>
+          <td class="px-3 py-2.5 text-right font-medium">NPR ${r.profit.toFixed(2)}</td>
+          <td class="px-3 py-2.5 text-right font-bold ${marginColor}">
+            ${r.margin_percent}%
+            ${r.is_low_margin ? '<span class="ml-1 text-xs bg-red-100 text-red-600 px-1 rounded">Low</span>' : ''}
+          </td>
+          <td class="px-3 py-2.5">
+            ${r.has_recipe
+              ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Set</span>'
+              : '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">No recipe</span>'}
+          </td>
+          <td class="px-3 py-2.5">
+            <button onclick="openRecipeModal(${r.menu_item_id})"
+              class="text-xs text-blue-600 hover:underline">Edit Recipe</button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  // ---- Recipe Modal ----
+  async function openRecipeModal(menuItemId) {
+    currentRecipeItemId = menuItemId;
+    const [recipeRes, ingsRes] = await Promise.all([
+      api(`/api/inventory/recipes/${menuItemId}`),
+      api('/api/inventory/ingredients'),
+    ]);
+    const recipe = await recipeRes.json();
+    const ings = await ingsRes.json();
+
+    document.getElementById('rm-title').textContent = recipe.name;
+    document.getElementById('rm-sub').textContent =
+      `Selling: NPR ${recipe.selling_price.toFixed(2)}`;
+    document.getElementById('rm-cost').textContent = `NPR ${recipe.total_cost.toFixed(2)}`;
+    document.getElementById('rm-price').textContent = `NPR ${recipe.selling_price.toFixed(2)}`;
+    document.getElementById('rm-margin').textContent =
+      `NPR ${recipe.profit.toFixed(2)} / ${recipe.margin_percent}%`;
+
+    // Recipe rows
+    document.getElementById('rm-body').innerHTML = recipe.ingredients.length === 0
+      ? '<tr><td colspan="5" class="py-4 text-center text-gray-400 text-xs">No ingredients added yet</td></tr>'
+      : recipe.ingredients.map(i => `
+          <tr class="border-b">
+            <td class="py-1.5 text-gray-800">${i.name}</td>
+            <td class="py-1.5 text-right text-gray-600">${i.quantity_used}</td>
+            <td class="py-1.5 pl-2 text-gray-500">${i.unit}</td>
+            <td class="py-1.5 text-right text-gray-600">${i.line_cost.toFixed(2)}</td>
+            <td class="py-1.5 pl-2">
+              <button onclick="removeRecipeRow(${i.id})"
+                class="text-xs text-red-500 hover:underline">Remove</button>
+            </td>
+          </tr>`).join('');
+
+    // Ingredient selector
+    const sel = document.getElementById('rm-ing-sel');
+    sel.innerHTML = '<option value="">— ingredient —</option>' +
+      ings.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+
+    document.getElementById('recipe-modal').classList.remove('hidden');
+  }
+
+  function closeRecipeModal() {
+    document.getElementById('recipe-modal').classList.add('hidden');
+  }
+
+  async function addRecipeIngredient() {
+    const ingId = document.getElementById('rm-ing-sel').value;
+    const qty = parseFloat(document.getElementById('rm-qty').value);
+    const unit = document.getElementById('rm-unit').value;
+    if (!ingId || !qty) { alert('Select ingredient and enter quantity.'); return; }
+    const res = await api(`/api/inventory/recipes/${currentRecipeItemId}`, {
+      method: 'POST',
+      body: JSON.stringify({ ingredient_id: parseInt(ingId), quantity_used: qty, unit }),
+    });
+    if (res.ok) {
+      await openRecipeModal(currentRecipeItemId);
+    } else {
+      const d = await res.json();
+      alert(d.detail || 'Failed to add ingredient to recipe');
+    }
+  }
+
+  async function removeRecipeRow(rowId) {
+    const res = await api(`/api/inventory/recipes/items/${rowId}`, { method: 'DELETE' });
+    if (res.status === 204 || res.ok) {
+      await openRecipeModal(currentRecipeItemId);
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

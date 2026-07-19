@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receipt – {{ bill.bill_number }}</title>
+<style>
+  /* ── Screen styles ── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    background: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+  }
+  .receipt {
+    background: #fff;
+    width: 320px;
+    padding: 16px;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+  .center  { text-align: center; }
+  .right   { text-align: right; }
+  .bold    { font-weight: bold; }
+  .lg      { font-size: 16px; }
+  .xl      { font-size: 18px; }
+  .divider { border-top: 1px dashed #555; margin: 6px 0; }
+  .divider-solid { border-top: 2px solid #222; margin: 6px 0; }
+  .row     { display: flex; justify-content: space-between; margin: 2px 0; }
+  .row .label { flex: 1; }
+  .row .val   { text-align: right; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { font-size: 12px; padding: 2px 0; }
+  th { border-bottom: 1px solid #333; }
+  td.name { max-width: 140px; word-break: break-word; }
+  td.num  { text-align: right; }
+  .total-row { font-weight: bold; font-size: 14px; }
+  .footer-text { font-size: 11px; text-align: center; margin-top: 4px; }
+  .print-btn {
+    display: block; margin: 16px auto; padding: 10px 32px;
+    background: #1d4ed8; color: #fff; border: none;
+    border-radius: 6px; font-size: 14px; cursor: pointer;
+  }
+  .print-btn:hover { background: #1e3a8a; }
+  .void-banner {
+    background: #dc2626; color: #fff; text-align: center;
+    font-weight: bold; padding: 4px; margin-bottom: 8px; letter-spacing: 2px;
+  }
+
+  /* ── Print styles (80mm roll) ── */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .receipt { width: 100%; box-shadow: none; border: none; padding: 4px; }
+    .print-btn { display: none; }
+    @page { size: 80mm auto; margin: 4mm 2mm; }
+  }
+</style>
+</head>
+<body>
+<div class="receipt">
+
+  {% if bill.payment_status == 'void' %}
+  <div class="void-banner">★ VOID / CANCELLED ★</div>
+  {% endif %}
+
+  <!-- Restaurant header -->
+  <div class="center">
+    <div class="xl bold">{{ restaurant.name }}</div>
+    {% if restaurant.address %}<div>{{ restaurant.address }}</div>{% endif %}
+    {% if restaurant.phone %}<div>Tel: {{ restaurant.phone }}</div>{% endif %}
+    {% if restaurant.vat_number %}<div>VAT No: {{ restaurant.vat_number }}</div>{% endif %}
+    <div style="font-size:11px">Fiscal Year: {{ bill.fiscal_year }}</div>
+  </div>
+
+  <div class="divider-solid"></div>
+
+  <!-- Bill meta -->
+  <div class="row"><span class="label">Bill No</span><span class="val bold">{{ bill.bill_number }}</span></div>
+  <div class="row"><span class="label">Date</span><span class="val">{{ bill.created_at[:19].replace('T',' ') }}</span></div>
+  {% if bill.table_number %}
+  <div class="row"><span class="label">Table</span><span class="val">{{ bill.table_number }}</span></div>
+  {% endif %}
+  {% if bill.order_type %}
+  <div class="row"><span class="label">Type</span><span class="val">{{ bill.order_type.replace('_',' ').title() }}</span></div>
+  {% endif %}
+  {% if bill.customer_name %}
+  <div class="row"><span class="label">Customer</span><span class="val">{{ bill.customer_name }}</span></div>
+  {% endif %}
+  {% if bill.customer_pan %}
+  <div class="row"><span class="label">PAN</span><span class="val">{{ bill.customer_pan }}</span></div>
+  {% endif %}
+  {% if bill.cashier_name %}
+  <div class="row"><span class="label">Cashier</span><span class="val">{{ bill.cashier_name }}</span></div>
+  {% endif %}
+
+  {% if receipt_note %}
+  <div class="divider"></div>
+  <div class="center" style="font-size:11px;font-style:italic">{{ receipt_note }}</div>
+  {% endif %}
+
+  <div class="divider"></div>
+
+  <!-- Items table -->
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left">Item</th>
+        <th style="text-align:right">Qty</th>
+        <th style="text-align:right">Rate</th>
+        <th style="text-align:right">Amt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in bill.items %}
+      <tr>
+        <td class="name">{{ item.name }}</td>
+        <td class="num">{{ item.quantity }}</td>
+        <td class="num">{{ "%.2f"|format(item.unit_price) }}</td>
+        <td class="num">{{ "%.2f"|format(item.line_total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="divider"></div>
+
+  <!-- Totals -->
+  <div class="row"><span class="label">Subtotal</span><span class="val">{{ "%.2f"|format(bill.subtotal) }}</span></div>
+  {% if bill.discount_amount and bill.discount_amount > 0 %}
+  <div class="row">
+    <span class="label">Discount{% if bill.discount_type == 'percentage' %} ({{ bill.discount_value }}%){% endif %}</span>
+    <span class="val">-{{ "%.2f"|format(bill.discount_amount) }}</span>
+  </div>
+  {% endif %}
+  {% if bill.service_charge and bill.service_charge > 0 %}
+  <div class="row"><span class="label">Service Charge (10%)</span><span class="val">{{ "%.2f"|format(bill.service_charge) }}</span></div>
+  {% endif %}
+  <div class="row"><span class="label">Taxable Amount</span><span class="val">{{ "%.2f"|format(bill.taxable_amount) }}</span></div>
+  <div class="row"><span class="label">VAT (13%)</span><span class="val">{{ "%.2f"|format(bill.vat_amount) }}</span></div>
+
+  <div class="divider-solid"></div>
+
+  <div class="row total-row">
+    <span class="label">TOTAL (NPR)</span>
+    <span class="val">{{ "%.2f"|format(bill.grand_total) }}</span>
+  </div>
+
+  {% if bill.payment_method %}
+  <div class="row"><span class="label">Payment</span><span class="val">{{ bill.payment_method.upper() }}</span></div>
+  {% endif %}
+  {% if change is defined and change is not none and change >= 0 %}
+  <div class="row"><span class="label">Change</span><span class="val">{{ "%.2f"|format(change) }}</span></div>
+  {% endif %}
+
+  <div class="divider"></div>
+
+  <!-- Footer -->
+  <div class="center">
+    {% if receipt_footer %}
+    <div class="footer-text bold">{{ receipt_footer }}</div>
+    {% else %}
+    <div class="footer-text bold">Thank you for dining with us!</div>
+    {% endif %}
+    <div class="footer-text">Please visit again 🙏</div>
+    <div class="divider"></div>
+    <div class="footer-text">IRD Certified Bill — Please keep this receipt</div>
+    {% if bill.print_count and bill.print_count > 1 %}
+    <div class="footer-text bold" style="color:#dc2626">REPRINT #{{ bill.print_count }}</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<button class="print-btn" onclick="window.print()">🖨 Print Receipt</button>
+
+<script>
+  // Auto-open print dialog if ?autoprint=1 is in URL
+  if (new URLSearchParams(window.location.search).get('autoprint') === '1') {
+    window.onload = () => setTimeout(() => window.print(), 400);
+  }
+</script>
+</body>
+</html>

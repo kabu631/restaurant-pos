@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+jinja2
+python-multipart
+bcrypt
+python-jose[cryptography]
+aiofiles
+python-escpos
+reportlab
+qrcode[pil]
+pillow
+httpx
+python-dotenv

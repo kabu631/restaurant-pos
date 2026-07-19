@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Order — Restaurant POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+<!-- Top nav -->
+<nav class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between shadow shrink-0">
+  <div class="flex items-center gap-3">
+    <a href="/dashboard" class="text-gray-400 hover:text-white text-sm font-medium">🍽️</a>
+    <span class="text-gray-600">|</span>
+    <span class="font-bold">New Order</span>
+    <span id="nav-table-badge" class="hidden bg-blue-600 text-xs px-2 py-0.5 rounded-full"></span>
+    <span class="hidden md:flex items-center gap-1">
+      <a href="/tables" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Floor Plan</a>
+      <a href="/kitchen" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Kitchen</a>
+      <a href="/billing" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Billing</a>
+    </span>
+  </div>
+  <div class="flex items-center gap-2">
+    <span id="nav-user" class="text-sm text-gray-300 mr-2 hidden sm:block"></span>
+  </div>
+</nav>
+
+<!-- Order type bar -->
+<div class="bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0">
+  <span class="text-sm font-medium text-gray-600">Order Type:</span>
+  <div class="flex gap-2">
+    <button onclick="setOrderType('dine_in')" data-type="dine_in"
+      class="order-type-btn active-type px-3 py-1 rounded-full text-sm font-medium">
+      Dine In
+    </button>
+    <button onclick="setOrderType('takeaway')" data-type="takeaway"
+      class="order-type-btn px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+      Takeaway
+    </button>
+    <button onclick="setOrderType('delivery')" data-type="delivery"
+      class="order-type-btn px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+      Delivery
+    </button>
+  </div>
+  <div id="table-selector-wrap" class="flex items-center gap-2 ml-2">
+    <label class="text-sm text-gray-500">Table:</label>
+    <select id="table-select"
+      class="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+      <option value="">— select table —</option>
+    </select>
+  </div>
+  <div id="customer-fields" class="hidden flex items-center gap-2 ml-2">
+    <input id="cust-name" placeholder="Customer name" type="text"
+      class="border rounded px-2 py-1 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    <input id="cust-phone" placeholder="Phone" type="text"
+      class="border rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+  </div>
+</div>
+
+<!-- Main area: menu + cart -->
+<div class="flex flex-1 overflow-hidden">
+
+  <!-- LEFT: Menu panel -->
+  <div class="flex flex-col w-[60%] border-r bg-white overflow-hidden">
+
+    <!-- Category tabs -->
+    <div id="cat-tabs" class="flex overflow-x-auto gap-0 border-b shrink-0">
+      <!-- injected -->
+    </div>
+
+    <!-- Search -->
+    <div class="px-4 py-2 border-b shrink-0">
+      <input id="item-search" type="text" placeholder="Search items…"
+        class="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        oninput="filterItems()" />
+    </div>
+
+    <!-- Item grid -->
+    <div id="item-grid"
+      class="flex-1 overflow-y-auto p-4 grid gap-3"
+      style="grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));">
+      <!-- injected -->
+    </div>
+  </div>
+
+  <!-- RIGHT: Cart / Order -->
+  <div class="flex flex-col w-[40%] bg-gray-50 overflow-hidden">
+
+    <!-- Cart header -->
+    <div class="px-4 py-3 border-b bg-white shrink-0 flex items-center justify-between">
+      <span class="font-semibold text-gray-800">Current Order</span>
+      <span id="cart-count" class="text-sm text-gray-400">0 items</span>
+    </div>
+
+    <!-- Cart items -->
+    <div id="cart-list" class="flex-1 overflow-y-auto divide-y"></div>
+
+    <!-- Empty state -->
+    <div id="cart-empty" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+      No items added yet
+    </div>
+
+    <!-- Order notes -->
+    <div class="px-4 py-2 border-t bg-white shrink-0">
+      <input id="order-notes" type="text" placeholder="Order notes (optional)…"
+        class="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+
+    <!-- Totals -->
+    <div class="px-4 py-3 bg-white border-t shrink-0 space-y-1 text-sm">
+      <div class="flex justify-between text-gray-600">
+        <span>Subtotal</span><span id="sub-total">NPR 0.00</span>
+      </div>
+      <div class="flex justify-between font-bold text-base border-t pt-2">
+        <span>Total</span><span id="grand-total">NPR 0.00</span>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="px-4 pb-4 pt-2 bg-white border-t shrink-0 flex gap-2">
+      <button onclick="clearCart()"
+        class="px-3 py-2 border rounded-lg text-sm text-red-600 hover:bg-red-50">
+        Clear
+      </button>
+      <button onclick="placeOrder(false)"
+        class="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-800 text-white hover:bg-gray-900">
+        Place Order
+      </button>
+      <button onclick="placeOrder(true)"
+        class="flex-1 py-2 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600">
+        Place + KOT
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SUCCESS MODAL ===== -->
+<div id="success-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-xl shadow-2xl w-96 p-6 text-center">
+    <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+      <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+      </svg>
+    </div>
+    <h2 class="text-xl font-bold mb-1">Order Placed!</h2>
+    <p id="success-msg" class="text-gray-500 text-sm mb-5"></p>
+    <div class="flex gap-3">
+      <button onclick="newOrder()"
+        class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">New Order</button>
+      <a id="view-order-link" href="#"
+        class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 text-center">
+        View Order
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  if (!token) window.location.href = '/login';
+
+  let allItems = [];
+  let activeCatId = null;
+  let orderType = 'dine_in';
+  let cart = [];   // [{menu_item_id, name, price, qty, notes}]
+
+  async function api(path, opts = {}) {
+    return fetch(path, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      ...opts,
+    });
+  }
+
+  // ---- Init ----
+  async function init() {
+    const [catRes, itemRes, tableRes, userRes] = await Promise.all([
+      api('/api/menu/categories'),
+      api('/api/menu/items'),
+      api('/api/tables'),
+      api('/api/auth/me'),
+    ]);
+
+    const cats = await catRes.json();
+    allItems = await itemRes.json();
+    const tables = await tableRes.json();
+    const user = await userRes.json();
+
+    document.getElementById('nav-user').textContent = `${user.full_name} (${user.role})`;
+
+    // Table selector
+    const sel = document.getElementById('table-select');
+    tables.filter(t => t.status === 'free').forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.table_number} (${t.capacity} seats)`;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      const badge = document.getElementById('nav-table-badge');
+      const opt = sel.options[sel.selectedIndex];
+      if (sel.value) {
+        badge.textContent = opt.textContent;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    });
+
+    // Category tabs
+    const tabsEl = document.getElementById('cat-tabs');
+    tabsEl.innerHTML = `<button onclick="setCat(null)" data-cat="all"
+      class="cat-tab whitespace-nowrap px-5 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600">
+      All</button>`;
+    cats.filter(c => c.is_active).forEach(c => {
+      tabsEl.innerHTML += `<button onclick="setCat(${c.id})" data-cat="${c.id}"
+        class="cat-tab whitespace-nowrap px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-800">
+        ${c.name}</button>`;
+    });
+
+    renderItems();
+  }
+
+  function setCat(id) {
+    activeCatId = id;
+    document.querySelectorAll('.cat-tab').forEach(b => {
+      const active = String(b.dataset.cat) === (id === null ? 'all' : String(id));
+      b.classList.toggle('border-blue-600', active);
+      b.classList.toggle('text-blue-600', active);
+      b.classList.toggle('border-transparent', !active);
+      b.classList.toggle('text-gray-500', !active);
+    });
+    renderItems();
+  }
+
+  function filterItems() { renderItems(); }
+
+  function renderItems() {
+    const search = document.getElementById('item-search').value.toLowerCase();
+    let items = allItems.filter(i => i.is_available);
+    if (activeCatId) items = items.filter(i => i.category_id === activeCatId);
+    if (search) items = items.filter(i => i.name.toLowerCase().includes(search));
+
+    document.getElementById('item-grid').innerHTML = items.map(i => `
+      <button onclick="addToCart(${i.id}, '${i.name.replace(/'/g, "\\'")}', ${i.price})"
+        class="bg-white border-2 border-gray-100 hover:border-blue-400 rounded-xl p-3 text-left
+               transition-all hover:shadow-md active:scale-95 cursor-pointer">
+        <div class="font-semibold text-sm text-gray-800 leading-tight mb-1">${i.name}</div>
+        <div class="text-blue-600 font-bold text-sm">NPR ${i.price.toFixed(2)}</div>
+        ${i.is_vat_applicable ? '<span class="text-xs text-gray-400">+VAT</span>' : ''}
+      </button>`).join('');
+  }
+
+  // ---- Order type ----
+  function setOrderType(type) {
+    orderType = type;
+    document.querySelectorAll('.order-type-btn').forEach(b => {
+      const active = b.dataset.type === type;
+      b.classList.toggle('active-type', active);
+      b.classList.toggle('bg-blue-600', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('bg-gray-100', !active);
+      b.classList.toggle('text-gray-600', !active);
+    });
+    document.getElementById('table-selector-wrap').style.display =
+      type === 'dine_in' ? '' : 'none';
+    document.getElementById('customer-fields').classList.toggle(
+      'hidden', type === 'dine_in');
+  }
+
+  // ---- Cart ----
+  function addToCart(id, name, price) {
+    const existing = cart.find(c => c.menu_item_id === id);
+    if (existing) { existing.qty += 1; }
+    else { cart.push({ menu_item_id: id, name, price, qty: 1, notes: '' }); }
+    renderCart();
+  }
+
+  function changeQty(id, delta) {
+    const idx = cart.findIndex(c => c.menu_item_id === id);
+    if (idx === -1) return;
+    cart[idx].qty += delta;
+    if (cart[idx].qty <= 0) cart.splice(idx, 1);
+    renderCart();
+  }
+
+  function clearCart() {
+    cart = [];
+    renderCart();
+  }
+
+  function renderCart() {
+    const list = document.getElementById('cart-list');
+    const empty = document.getElementById('cart-empty');
+    const count = cart.reduce((s, c) => s + c.qty, 0);
+    const subtotal = cart.reduce((s, c) => s + c.qty * c.price, 0);
+
+    document.getElementById('cart-count').textContent = `${count} item${count !== 1 ? 's' : ''}`;
+    document.getElementById('sub-total').textContent = `NPR ${subtotal.toFixed(2)}`;
+    document.getElementById('grand-total').textContent = `NPR ${subtotal.toFixed(2)}`;
+
+    if (cart.length === 0) {
+      list.innerHTML = '';
+      list.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    list.classList.remove('hidden');
+
+    list.innerHTML = cart.map(item => `
+      <div class="flex items-center gap-2 px-4 py-2.5 bg-white">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-gray-800 truncate">${item.name}</div>
+          <div class="text-xs text-gray-400">NPR ${item.price.toFixed(2)} each</div>
+        </div>
+        <div class="flex items-center gap-1">
+          <button onclick="changeQty(${item.menu_item_id}, -1)"
+            class="w-6 h-6 rounded-full border text-gray-500 hover:bg-gray-100 text-sm font-bold flex items-center justify-center">−</button>
+          <span class="w-6 text-center text-sm font-semibold">${item.qty}</span>
+          <button onclick="changeQty(${item.menu_item_id}, 1)"
+            class="w-6 h-6 rounded-full border text-gray-500 hover:bg-gray-100 text-sm font-bold flex items-center justify-center">+</button>
+        </div>
+        <div class="text-sm font-semibold text-gray-800 w-16 text-right">
+          ${(item.qty * item.price).toFixed(2)}
+        </div>
+      </div>`).join('');
+  }
+
+  // ---- Place Order ----
+  async function placeOrder(sendKot) {
+    if (cart.length === 0) { alert('Add items to the order first.'); return; }
+    if (orderType === 'dine_in' && !document.getElementById('table-select').value) {
+      alert('Select a table for dine-in orders.'); return;
+    }
+
+    const tableId = orderType === 'dine_in'
+      ? parseInt(document.getElementById('table-select').value) || null
+      : null;
+
+    // 1. Create order
+    const orderBody = {
+      order_type: orderType,
+      table_id: tableId,
+      customer_name: document.getElementById('cust-name').value || null,
+      customer_phone: document.getElementById('cust-phone').value || null,
+      notes: document.getElementById('order-notes').value || null,
+    };
+    const oRes = await api('/api/orders', { method: 'POST', body: JSON.stringify(orderBody) });
+    if (!oRes.ok) { const d = await oRes.json(); alert(d.detail || 'Failed to create order'); return; }
+    const order = await oRes.json();
+
+    // 2. Add items
+    for (const item of cart) {
+      await api(`/api/orders/${order.id}/items`, {
+        method: 'POST',
+        body: JSON.stringify({ menu_item_id: item.menu_item_id, quantity: item.qty }),
+      });
+    }
+
+    // 3. Optionally send KOT
+    let kotMsg = '';
+    if (sendKot) {
+      const kRes = await api(`/api/orders/${order.id}/kot`, { method: 'POST' });
+      if (kRes.ok) {
+        const k = await kRes.json();
+        kotMsg = ` · KOT #${k.kot_number} sent to kitchen`;
+      }
+    }
+
+    document.getElementById('success-msg').textContent =
+      `Order #${order.id} created${kotMsg}`;
+    document.getElementById('view-order-link').href = `/orders`;
+    document.getElementById('success-modal').classList.remove('hidden');
+  }
+
+  function newOrder() {
+    document.getElementById('success-modal').classList.add('hidden');
+    cart = [];
+    renderCart();
+    document.getElementById('order-notes').value = '';
+    document.getElementById('table-select').value = '';
+    document.getElementById('nav-table-badge').classList.add('hidden');
+    init();  // reload free tables
+  }
+
+  // Init style for active type button
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-type="dine_in"]').classList.add('bg-blue-600', 'text-white');
+    document.querySelector('[data-type="dine_in"]').classList.remove('bg-gray-100', 'text-gray-600');
+  });
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings – Restaurant POS</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .tab-active   { @apply border-b-2 border-blue-600 text-blue-600 font-semibold; }
+  .tab-inactive { @apply text-gray-500 hover:text-gray-800; }
+  .section-card { @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6; }
+  .form-label   { @apply block text-sm font-medium text-gray-700 mb-1; }
+  .form-input   { @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500; }
+  .btn-primary  { @apply bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition; }
+  .btn-secondary{ @apply bg-gray-100 text-gray-700 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition; }
+  .btn-green    { @apply bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition; }
+  .btn-red      { @apply bg-red-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition; }
+  .toast { position:fixed; bottom:24px; right:24px; z-index:9999; padding:12px 20px;
+           border-radius:8px; font-size:14px; font-weight:500; display:none;
+           box-shadow:0 4px 12px rgba(0,0,0,.15); }
+  .toast.ok  { background:#16a34a; color:#fff; }
+  .toast.err { background:#dc2626; color:#fff; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Nav -->
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+  <div class="flex items-center gap-3">
+    <a href="/dashboard" class="text-gray-500 hover:text-gray-800 text-sm">← Dashboard</a>
+    <span class="text-gray-300">|</span>
+    <h1 class="font-bold text-gray-800 text-lg">⚙️ Restaurant Settings</h1>
+  </div>
+  <div id="user-badge" class="text-sm text-gray-500"></div>
+</nav>
+
+<div class="max-w-3xl mx-auto px-4 py-8">
+
+  <!-- Tabs -->
+  <div class="flex gap-6 border-b border-gray-200 mb-6 text-sm">
+    <button onclick="switchTab('profile')"  id="tab-profile"  class="pb-3 tab-active">🏪 Restaurant Profile</button>
+    <button onclick="switchTab('receipt')"  id="tab-receipt"  class="pb-3 tab-inactive">🧾 Receipt & Print</button>
+    <button onclick="switchTab('backup')"   id="tab-backup"   class="pb-3 tab-inactive">💾 Backup</button>
+    <button onclick="switchTab('security')" id="tab-security" class="pb-3 tab-inactive">🔐 Security</button>
+  </div>
+
+  <!-- ── Tab: Profile ── -->
+  <div id="pane-profile">
+    <div class="section-card">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">Restaurant Information</h2>
+      <p class="text-sm text-gray-500 mb-4">This information appears on printed receipts and VAT invoices.</p>
+      <div class="grid grid-cols-1 gap-4">
+        <div>
+          <label class="form-label">Restaurant Name *</label>
+          <input id="p-name" class="form-input" placeholder="Spice Garden Restaurant">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">Phone Number</label>
+            <input id="p-phone" class="form-input" placeholder="01-4123456 / 9801234567">
+          </div>
+          <div>
+            <label class="form-label">VAT / PAN Number</label>
+            <input id="p-vat" class="form-input" placeholder="123456789">
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Address</label>
+          <input id="p-address" class="form-input" placeholder="Thamel, Kathmandu, Nepal">
+        </div>
+      </div>
+      <div class="mt-5 flex gap-3">
+        <button class="btn-primary" onclick="saveProfile()">Save Profile</button>
+        <button class="btn-secondary" onclick="loadSettings()">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Receipt & Print ── -->
+  <div id="pane-receipt" class="hidden">
+    <div class="section-card">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">Receipt Customisation</h2>
+      <div class="grid grid-cols-1 gap-4">
+        <div>
+          <label class="form-label">Receipt Footer Message</label>
+          <input id="s-receipt_footer" class="form-input"
+                 placeholder="Thank you for dining with us!">
+          <p class="text-xs text-gray-400 mt-1">Printed at the bottom of every receipt.</p>
+        </div>
+        <div>
+          <label class="form-label">Receipt Note (above items)</label>
+          <input id="s-receipt_note" class="form-input"
+                 placeholder="Service charge and VAT applicable">
+          <p class="text-xs text-gray-400 mt-1">Optional note printed above the item list.</p>
+        </div>
+      </div>
+      <div class="mt-5">
+        <button class="btn-primary" onclick="saveReceiptSettings()">Save Receipt Settings</button>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <h2 class="text-base font-semibold text-gray-800 mb-1">Thermal Printer</h2>
+      <p class="text-sm text-gray-500 mb-4">
+        Configure a direct-connected thermal printer for one-click printing.
+        Leave blank to use browser print (Ctrl+P) instead.
+      </p>
+      <div>
+        <label class="form-label">Printer Path / COM Port</label>
+        <input id="s-thermal_printer_path" class="form-input"
+               placeholder="COM3  or  /dev/usb/lp0  or  192.168.1.100">
+        <p class="text-xs text-gray-400 mt-1">
+          Windows: COM3 · COM4, etc. &nbsp;|&nbsp; Linux: /dev/usb/lp0 &nbsp;|&nbsp; Network: IP address
+        </p>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button class="btn-primary" onclick="savePrinterSetting()">Save Printer Path</button>
+        <button class="btn-secondary" onclick="testPrint()">🖨 Test Print</button>
+      </div>
+      <div id="printer-status" class="mt-3 text-sm hidden"></div>
+    </div>
+
+    <div class="section-card">
+      <h2 class="text-base font-semibold text-gray-800 mb-2">Receipt Preview</h2>
+      <p class="text-sm text-gray-500 mb-3">See how receipts will look for your customers.</p>
+      <a id="preview-link" href="/receipt/demo" target="_blank"
+         class="btn-secondary inline-block">🧾 Open Sample Receipt</a>
+    </div>
+  </div>
+
+  <!-- ── Tab: Backup ── -->
+  <div id="pane-backup" class="hidden">
+    <div class="section-card">
+      <h2 class="text-base font-semibold text-gray-800 mb-1">Automatic Daily Backup</h2>
+      <p class="text-sm text-gray-500 mb-4">
+        The system automatically backs up the database every night at midnight.
+        Backups are stored in the <code class="bg-gray-100 px-1 rounded">data/backups/</code> folder
+        and kept for 30 days.
+      </p>
+      <div id="backup-list" class="text-sm text-gray-600 mb-4">Loading backup list…</div>
+      <button class="btn-green" onclick="backupNow()">💾 Back Up Now</button>
+    </div>
+  </div>
+
+  <!-- ── Tab: Security ── -->
+  <div id="pane-security" class="hidden">
+    <div class="section-card">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">Change Your Password</h2>
+      <div class="grid grid-cols-1 gap-4 max-w-sm">
+        <div>
+          <label class="form-label">Current Password</label>
+          <input id="sec-current" type="password" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">New Password</label>
+          <input id="sec-new" type="password" class="form-input" placeholder="Min. 6 characters">
+        </div>
+        <div>
+          <label class="form-label">Confirm New Password</label>
+          <input id="sec-confirm" type="password" class="form-input">
+        </div>
+      </div>
+      <div class="mt-5">
+        <button class="btn-primary" onclick="changePassword()">Update Password</button>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">Quick-Login PIN</h2>
+      <p class="text-sm text-gray-500 mb-3">Set a 4-digit PIN for fast login on shared devices.</p>
+      <div class="flex items-end gap-3">
+        <div class="w-32">
+          <label class="form-label">New PIN</label>
+          <input id="sec-pin" type="password" maxlength="4" inputmode="numeric"
+                 class="form-input text-center text-xl tracking-widest" placeholder="••••">
+        </div>
+        <button class="btn-primary mb-[1px]" onclick="setPin()">Set PIN</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+const token = () => localStorage.getItem('token') || sessionStorage.getItem('token');
+const h = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${token()}` });
+
+// ── Auth guard ────────────────────────────────────────────────────────────────
+async function init() {
+  const r = await fetch('/api/auth/me', { headers: h() });
+  if (!r.ok) { location.href = '/login'; return; }
+  const u = await r.json();
+  if (!['admin','superadmin'].includes(u.role)) { location.href = '/dashboard'; return; }
+  document.getElementById('user-badge').textContent = `${u.full_name} (${u.role})`;
+  loadSettings();
+  loadBackupList();
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+const TABS = ['profile','receipt','backup','security'];
+function switchTab(t) {
+  TABS.forEach(tab => {
+    document.getElementById(`tab-${tab}`).className = 'pb-3 ' +
+      (tab === t ? 'tab-active border-b-2 border-blue-600 text-blue-600 font-semibold'
+                 : 'tab-inactive text-gray-500 hover:text-gray-800');
+    document.getElementById(`pane-${tab}`).classList.toggle('hidden', tab !== t);
+  });
+  if (t === 'backup') loadBackupList();
+}
+
+// ── Load settings ─────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const r = await fetch('/api/settings', { headers: h() });
+  if (!r.ok) { showToast('Failed to load settings', false); return; }
+  const d = await r.json();
+  document.getElementById('p-name').value    = d.name    || '';
+  document.getElementById('p-phone').value   = d.phone   || '';
+  document.getElementById('p-vat').value     = d.vat_number || '';
+  document.getElementById('p-address').value = d.address || '';
+  const s = d.settings || {};
+  ['receipt_footer','receipt_note','thermal_printer_path'].forEach(k => {
+    const el = document.getElementById(`s-${k}`);
+    if (el) el.value = s[k] || '';
+  });
+}
+
+// ── Save profile ──────────────────────────────────────────────────────────────
+async function saveProfile() {
+  const body = {
+    profile: {
+      name:       document.getElementById('p-name').value.trim(),
+      phone:      document.getElementById('p-phone').value.trim(),
+      vat_number: document.getElementById('p-vat').value.trim(),
+      address:    document.getElementById('p-address').value.trim(),
+    }
+  };
+  if (!body.profile.name) { showToast('Restaurant name is required', false); return; }
+  const r = await fetch('/api/settings/bulk', {
+    method:'PUT', headers: h(), body: JSON.stringify(body)
+  });
+  showToast(r.ok ? 'Profile saved ✓' : 'Save failed', r.ok);
+}
+
+// ── Save receipt settings ─────────────────────────────────────────────────────
+async function saveReceiptSettings() {
+  const body = { settings: {
+    receipt_footer: document.getElementById('s-receipt_footer').value.trim(),
+    receipt_note:   document.getElementById('s-receipt_note').value.trim(),
+  }};
+  const r = await fetch('/api/settings/bulk', {
+    method:'PUT', headers: h(), body: JSON.stringify(body)
+  });
+  showToast(r.ok ? 'Receipt settings saved ✓' : 'Save failed', r.ok);
+}
+
+// ── Save printer path ─────────────────────────────────────────────────────────
+async function savePrinterSetting() {
+  const body = { settings: {
+    thermal_printer_path: document.getElementById('s-thermal_printer_path').value.trim()
+  }};
+  const r = await fetch('/api/settings/bulk', {
+    method:'PUT', headers: h(), body: JSON.stringify(body)
+  });
+  showToast(r.ok ? 'Printer path saved ✓' : 'Save failed', r.ok);
+}
+
+// ── Test print ────────────────────────────────────────────────────────────────
+async function testPrint() {
+  const path = document.getElementById('s-thermal_printer_path').value.trim();
+  const el = document.getElementById('printer-status');
+  el.className = 'mt-3 text-sm text-yellow-600';
+  el.textContent = 'Sending test print…';
+  el.classList.remove('hidden');
+  const r = await fetch('/api/billing/test-print', {
+    method:'POST', headers: h(),
+    body: JSON.stringify({ printer_path: path })
+  });
+  const d = await r.json();
+  el.textContent = d.ok ? '✓ Test page sent to printer!' : `✗ ${d.detail}`;
+  el.className   = `mt-3 text-sm ${d.ok ? 'text-green-600' : 'text-red-600'}`;
+}
+
+// ── Backup list ───────────────────────────────────────────────────────────────
+async function loadBackupList() {
+  const r = await fetch('/api/backup/list', { headers: h() });
+  const el = document.getElementById('backup-list');
+  if (!r.ok) { el.textContent = 'Could not load backup list.'; return; }
+  const files = await r.json();
+  if (!files.length) {
+    el.textContent = 'No backups yet.';
+    return;
+  }
+  el.innerHTML = `<div class="font-medium text-gray-700 mb-2">Recent backups (${files.length}):</div>` +
+    files.slice(0,10).map(f =>
+      `<div class="flex justify-between text-xs text-gray-600 py-1 border-b border-gray-100">
+         <span>📦 ${f.name}</span><span>${f.size_kb} KB</span>
+       </div>`
+    ).join('');
+}
+
+async function backupNow() {
+  const r = await fetch('/api/backup/now', { method:'POST', headers: h() });
+  const d = await r.json();
+  showToast(d.ok ? `Backup created: ${d.file} (${d.size_kb} KB)` : d.detail, d.ok);
+  if (d.ok) loadBackupList();
+}
+
+// ── Security: change password ─────────────────────────────────────────────────
+async function changePassword() {
+  const cur  = document.getElementById('sec-current').value;
+  const nw   = document.getElementById('sec-new').value;
+  const conf = document.getElementById('sec-confirm').value;
+  if (!cur || !nw)  { showToast('Fill in all fields', false); return; }
+  if (nw !== conf)  { showToast('Passwords do not match', false); return; }
+  if (nw.length < 6){ showToast('Password must be at least 6 characters', false); return; }
+  const r = await fetch('/api/auth/change-password', {
+    method:'POST', headers: h(),
+    body: JSON.stringify({ current_password: cur, new_password: nw })
+  });
+  const d = await r.json();
+  if (r.ok) {
+    showToast('Password changed ✓', true);
+    ['sec-current','sec-new','sec-confirm'].forEach(id => document.getElementById(id).value='');
+  } else {
+    showToast(d.detail || 'Failed to change password', false);
+  }
+}
+
+// ── Security: set PIN ─────────────────────────────────────────────────────────
+async function setPin() {
+  const meR = await fetch('/api/auth/me', { headers: h() });
+  const me  = await meR.json();
+  const pin = document.getElementById('sec-pin').value;
+  if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    showToast('PIN must be exactly 4 digits', false); return;
+  }
+  const r = await fetch(`/api/users/${me.id}/reset-pin`, {
+    method:'PATCH', headers: h(), body: JSON.stringify({ new_pin: pin })
+  });
+  showToast(r.ok ? 'PIN updated ✓' : 'Failed to set PIN', r.ok);
+  if (r.ok) document.getElementById('sec-pin').value = '';
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast ${ok ? 'ok' : 'err'}`;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display='none'; }, 3500);
+}
+
+init();
+</script>
+</body>
+</html>

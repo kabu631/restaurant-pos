@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register Restaurant — POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body { background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%); }</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <div class="w-full max-w-lg">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full shadow-lg mb-4">
+        <span class="text-3xl">🍽️</span>
+      </div>
+      <h1 class="text-2xl font-bold text-white">Register Your Restaurant</h1>
+      <p class="text-blue-200 text-sm mt-1">आफ्नो रेस्टुरेन्ट दर्ता गर्नुहोस्</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      <div id="error-msg" class="hidden bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3 mb-5"></div>
+      <div id="success-msg" class="hidden bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-4 mb-5"></div>
+
+      <form id="reg-form" onsubmit="doRegister(event)" class="space-y-4">
+
+        <div class="border-b pb-4 mb-2">
+          <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Restaurant Info</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Restaurant Name *</label>
+              <input id="restaurant_name" type="text" required
+                class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Spice Garden Restaurant" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">
+                Restaurant Code * <span class="text-gray-400 font-normal">(used for login — lowercase, hyphens only)</span>
+              </label>
+              <input id="restaurant_code" type="text" required pattern="[a-z0-9][a-z0-9\-]{1,30}[a-z0-9]"
+                class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="spice-garden" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')" />
+              <p class="text-xs text-gray-400 mt-1">e.g. "spice-garden" — staff will type this at login</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Phone</label>
+                <input id="phone" type="text"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="01-XXXXXXX" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">VAT Number</label>
+                <input id="vat_number" type="text"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="PAN / VAT No." />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Address</label>
+              <input id="address" type="text"
+                class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Thamel, Kathmandu" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Admin Account</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Full Name *</label>
+              <input id="admin_full_name" type="text" required
+                class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Ram Prasad Sharma" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Username *</label>
+                <input id="admin_username" type="text" required
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="admin" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Password *</label>
+                <input id="admin_password" type="password" required minlength="6"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Min 6 characters" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" id="reg-btn"
+          class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded-lg transition-colors mt-2">
+          Register Restaurant
+        </button>
+      </form>
+
+      <p class="text-center text-sm text-gray-400 mt-5">
+        Already registered?
+        <a href="/login" class="text-blue-600 hover:underline font-medium">Sign in here</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    async function doRegister(e) {
+      e.preventDefault();
+      const btn = document.getElementById('reg-btn');
+      const errEl = document.getElementById('error-msg');
+      const okEl  = document.getElementById('success-msg');
+      btn.textContent = 'Registering...';
+      btn.disabled = true;
+      errEl.classList.add('hidden');
+      okEl.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/restaurants/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurant_name:  document.getElementById('restaurant_name').value.trim(),
+            restaurant_code:  document.getElementById('restaurant_code').value.trim(),
+            phone:            document.getElementById('phone').value.trim() || null,
+            address:          document.getElementById('address').value.trim() || null,
+            vat_number:       document.getElementById('vat_number').value.trim() || null,
+            admin_full_name:  document.getElementById('admin_full_name').value.trim(),
+            admin_username:   document.getElementById('admin_username').value.trim(),
+            admin_password:   document.getElementById('admin_password').value,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('reg-form').classList.add('hidden');
+          okEl.innerHTML = `
+            <p class="font-semibold text-base mb-2">✅ Restaurant registered successfully!</p>
+            <p>Restaurant Code: <strong>${data.restaurant_code}</strong></p>
+            <p>Admin Username: <strong>${data.admin_username}</strong></p>
+            <p class="mt-3">
+              <a href="/login?restaurant=${data.restaurant_code}"
+                 class="inline-block bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
+                Go to Login →
+              </a>
+            </p>`;
+          okEl.classList.remove('hidden');
+        } else {
+          errEl.textContent = data.detail || 'Registration failed.';
+          errEl.classList.remove('hidden');
+        }
+      } catch {
+        errEl.textContent = 'Connection error. Is the server running?';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.textContent = 'Register Restaurant';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
