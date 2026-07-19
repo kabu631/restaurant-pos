@@ -1,0 +1,330 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE app_settings (
+	id INTEGER NOT NULL, 
+	"key" VARCHAR NOT NULL, 
+	value VARCHAR, 
+	description VARCHAR, restaurant_id INTEGER REFERENCES restaurants(id), 
+	PRIMARY KEY (id), 
+	UNIQUE ("key")
+);
+CREATE TABLE audit_trail (
+	id INTEGER NOT NULL, 
+	user_id INTEGER, 
+	action VARCHAR NOT NULL, 
+	table_name VARCHAR NOT NULL, 
+	record_id INTEGER, 
+	old_value VARCHAR, 
+	new_value VARCHAR, 
+	ip_address VARCHAR, 
+	reason VARCHAR, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(user_id) REFERENCES users (id)
+);
+INSERT INTO "audit_trail" VALUES(1,1,'CREATE_BILL','bills',11,NULL,'{"bill_number": "2082/83-000011", "grand_total": 528.9}',NULL,NULL,'2026-06-28 11:49:12',1);
+INSERT INTO "audit_trail" VALUES(2,1,'PAY_BILL','bills',11,NULL,'{"payment_method": "cash", "grand_total": 528.9}',NULL,NULL,'2026-06-28 11:49:36',1);
+INSERT INTO "audit_trail" VALUES(3,1,'CREATE_BILL','bills',12,NULL,'{"bill_number": "2082/83-000012", "grand_total": 405.9}',NULL,NULL,'2026-06-28 11:52:47',1);
+CREATE TABLE bills (
+	id INTEGER NOT NULL, 
+	order_id INTEGER NOT NULL, 
+	bill_number VARCHAR NOT NULL, 
+	subtotal FLOAT NOT NULL, 
+	discount_type VARCHAR, 
+	discount_value FLOAT, 
+	discount_amount FLOAT, 
+	taxable_amount FLOAT NOT NULL, 
+	vat_amount FLOAT, 
+	service_charge FLOAT, 
+	grand_total FLOAT NOT NULL, 
+	payment_method VARCHAR, 
+	payment_status VARCHAR, 
+	cashier_id INTEGER, 
+	customer_pan VARCHAR, 
+	customer_name VARCHAR, 
+	is_printed BOOLEAN, 
+	print_count INTEGER, 
+	synced_to_cbms BOOLEAN, 
+	cbms_sync_at DATETIME, 
+	fiscal_year VARCHAR, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), fonepay_prn VARCHAR, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(order_id) REFERENCES orders (id), 
+	UNIQUE (bill_number), 
+	FOREIGN KEY(cashier_id) REFERENCES users (id)
+);
+INSERT INTO "bills" VALUES(1,7,'2082/83-000001',300.0,'flat',50.0,50.0,250.0,32.5,25.0,307.5,'cash','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:17:33','2026-05-19 17:17:33',1,NULL);
+INSERT INTO "bills" VALUES(2,10,'2082/83-000002',300.0,'flat',50.0,50.0,250.0,32.5,25.0,307.5,'cash','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:18:10','2026-05-19 17:18:10',1,NULL);
+INSERT INTO "bills" VALUES(3,13,'2082/83-000003',300.0,'flat',50.0,50.0,250.0,32.5,25.0,307.5,'cash','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:21:24','2026-05-19 17:21:24',1,NULL);
+INSERT INTO "bills" VALUES(4,16,'2082/83-000004',300.0,'flat',50.0,50.0,250.0,32.5,25.0,307.5,'cash','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:22:05','2026-05-19 17:22:05',1,NULL);
+INSERT INTO "bills" VALUES(5,19,'2082/83-000005',300.0,'flat',50.0,50.0,250.0,32.5,25.0,307.5,'cash','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:30:59','2026-05-19 17:30:59',1,NULL);
+INSERT INTO "bills" VALUES(6,22,'2082/83-000006',300.0,'flat',50.0,50.0,250.0,32.5,25.0,307.5,'cash','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:31:23','2026-05-19 17:31:23',1,NULL);
+INSERT INTO "bills" VALUES(7,25,'2082/83-000007',300.0,'flat',50.0,50.0,250.0,32.5,25.0,307.5,'cash','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:32:01','2026-05-19 17:32:02',1,NULL);
+INSERT INTO "bills" VALUES(8,15,'2082/83-000008',300.0,NULL,0.0,0.0,300.0,39.0,30.0,369.0,'qr','paid',1,NULL,NULL,0,0,0,NULL,'2082/83','2026-05-19 17:36:55','2026-05-19 17:37:03',1,NULL);
+INSERT INTO "bills" VALUES(9,12,'2082/83-000009',300.0,'flat',20.0,20.0,280.0,36.4,28.0,344.4,NULL,'unpaid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:37:35','2026-05-19 17:37:40',1,NULL);
+INSERT INTO "bills" VALUES(10,18,'2082/83-000010',300.0,NULL,0.0,0.0,300.0,39.0,30.0,369.0,'qr','paid',1,NULL,NULL,1,1,0,NULL,'2082/83','2026-05-19 17:42:28','2026-05-19 17:42:41',1,NULL);
+INSERT INTO "bills" VALUES(11,27,'2082/83-000011',430.0,NULL,0.0,0.0,430.0,55.9,43.0,528.9,'cash','paid',1,NULL,NULL,0,0,0,NULL,'2082/83','2026-06-28 11:49:12','2026-06-28 11:49:36',1,NULL);
+INSERT INTO "bills" VALUES(12,28,'2082/83-000012',430.0,'flat',100.0,100.0,330.0,42.9,33.0,405.9,NULL,'unpaid',1,NULL,NULL,0,0,0,NULL,'2082/83','2026-06-28 11:52:47','2026-06-28 11:52:47',1,NULL);
+CREATE TABLE categories (
+	id INTEGER NOT NULL, 
+	name VARCHAR NOT NULL, 
+	display_order INTEGER, 
+	is_active BOOLEAN, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), 
+	PRIMARY KEY (id)
+);
+INSERT INTO "categories" VALUES(1,'Starters',1,1,'2026-05-19 16:57:18',1);
+INSERT INTO "categories" VALUES(2,'Test Cat Updated',99,1,'2026-05-19 17:03:57',1);
+INSERT INTO "categories" VALUES(3,'Test Cat Updated',99,1,'2026-05-19 17:07:48',1);
+INSERT INTO "categories" VALUES(4,'Test Cat Updated',99,1,'2026-05-19 17:10:18',1);
+INSERT INTO "categories" VALUES(5,'Test Cat Updated',99,1,'2026-05-19 17:11:05',1);
+INSERT INTO "categories" VALUES(6,'Test Cat Updated',99,1,'2026-05-19 17:11:42',1);
+INSERT INTO "categories" VALUES(7,'Test Cat Updated',99,1,'2026-05-19 17:14:08',1);
+INSERT INTO "categories" VALUES(8,'Test Cat Updated',99,1,'2026-05-19 17:17:33',1);
+INSERT INTO "categories" VALUES(9,'Test Cat Updated',99,1,'2026-05-19 17:18:09',1);
+INSERT INTO "categories" VALUES(10,'Test Cat Updated',99,1,'2026-05-19 17:21:24',1);
+INSERT INTO "categories" VALUES(11,'Test Cat Updated',99,1,'2026-05-19 17:22:05',1);
+INSERT INTO "categories" VALUES(12,'Test Cat Updated',99,1,'2026-05-19 17:30:59',1);
+INSERT INTO "categories" VALUES(13,'Test Cat Updated',99,1,'2026-05-19 17:31:23',1);
+INSERT INTO "categories" VALUES(14,'Test Cat Updated',99,1,'2026-05-19 17:32:01',1);
+INSERT INTO "categories" VALUES(15,'Snack',1,1,'2026-05-19 18:25:55',2);
+INSERT INTO "categories" VALUES(16,'Cutting Tea',0,1,'2026-06-29 08:38:07',1);
+CREATE TABLE customers (
+	id INTEGER NOT NULL, 
+	name VARCHAR NOT NULL, 
+	phone VARCHAR NOT NULL, 
+	email VARCHAR, 
+	total_visits INTEGER, 
+	total_spent FLOAT, 
+	loyalty_points INTEGER, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), 
+	PRIMARY KEY (id), 
+	UNIQUE (phone)
+);
+CREATE TABLE ingredients (
+	id INTEGER NOT NULL, 
+	name VARCHAR NOT NULL, 
+	unit VARCHAR NOT NULL, 
+	current_stock FLOAT, 
+	minimum_stock FLOAT, 
+	cost_per_unit FLOAT, 
+	supplier_name VARCHAR, 
+	last_purchased_at DATETIME, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), 
+	PRIMARY KEY (id)
+);
+CREATE TABLE menu_items (
+	id INTEGER NOT NULL, 
+	category_id INTEGER NOT NULL, 
+	name VARCHAR NOT NULL, 
+	name_np VARCHAR, 
+	price FLOAT NOT NULL, 
+	variant_type VARCHAR, 
+	description VARCHAR, 
+	is_vat_applicable BOOLEAN, 
+	is_available BOOLEAN, 
+	image_path VARCHAR, 
+	display_order INTEGER, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(category_id) REFERENCES categories (id)
+);
+INSERT INTO "menu_items" VALUES(1,1,'Chicken Momo',NULL,250.0,NULL,NULL,1,0,NULL,0,'2026-05-19 16:57:18','2026-05-19 16:57:18',1);
+INSERT INTO "menu_items" VALUES(2,2,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:03:57','2026-05-19 17:03:57',1);
+INSERT INTO "menu_items" VALUES(3,3,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:07:48','2026-05-19 17:07:48',1);
+INSERT INTO "menu_items" VALUES(4,4,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:10:18','2026-05-19 17:10:18',1);
+INSERT INTO "menu_items" VALUES(5,5,'Test Momo',NULL,280.0,NULL,NULL,1,1,NULL,0,'2026-05-19 17:11:05','2026-05-19 17:36:25',1);
+INSERT INTO "menu_items" VALUES(6,6,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:11:42','2026-05-19 17:11:42',1);
+INSERT INTO "menu_items" VALUES(7,6,'Order Test Item',NULL,150.0,NULL,NULL,0,1,NULL,0,'2026-05-19 17:11:42','2026-05-19 17:11:42',1);
+INSERT INTO "menu_items" VALUES(8,7,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:14:08','2026-05-19 17:14:08',1);
+INSERT INTO "menu_items" VALUES(9,7,'Order Test Item',NULL,150.0,NULL,NULL,0,1,NULL,0,'2026-05-19 17:14:08','2026-05-19 17:14:08',1);
+INSERT INTO "menu_items" VALUES(10,8,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:17:33','2026-05-19 17:17:33',1);
+INSERT INTO "menu_items" VALUES(11,8,'Order Test Item',NULL,150.0,NULL,NULL,0,1,NULL,0,'2026-05-19 17:17:33','2026-05-19 17:17:33',1);
+INSERT INTO "menu_items" VALUES(12,9,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:18:09','2026-05-19 17:18:09',1);
+INSERT INTO "menu_items" VALUES(13,9,'Order Test Item',NULL,150.0,NULL,NULL,0,1,NULL,0,'2026-05-19 17:18:10','2026-05-19 17:18:10',1);
+INSERT INTO "menu_items" VALUES(14,10,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:21:24','2026-05-19 17:21:24',1);
+INSERT INTO "menu_items" VALUES(15,10,'Order Test Item',NULL,150.0,NULL,NULL,0,0,NULL,0,'2026-05-19 17:21:24','2026-05-20 03:55:52',1);
+INSERT INTO "menu_items" VALUES(16,11,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:22:05','2026-05-19 17:22:05',1);
+INSERT INTO "menu_items" VALUES(17,11,'Order Test Item',NULL,150.0,NULL,NULL,0,1,NULL,0,'2026-05-19 17:22:05','2026-05-19 17:22:05',1);
+INSERT INTO "menu_items" VALUES(18,12,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:30:59','2026-05-19 17:30:59',1);
+INSERT INTO "menu_items" VALUES(19,12,'Order Test Item',NULL,150.0,NULL,NULL,0,1,NULL,0,'2026-05-19 17:30:59','2026-05-19 17:30:59',1);
+INSERT INTO "menu_items" VALUES(20,13,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:31:23','2026-05-19 17:31:23',1);
+INSERT INTO "menu_items" VALUES(21,13,'Order Test Item',NULL,150.0,NULL,NULL,0,1,NULL,0,'2026-05-19 17:31:23','2026-05-19 17:31:23',1);
+INSERT INTO "menu_items" VALUES(22,14,'Test Momo',NULL,280.0,NULL,NULL,1,0,NULL,0,'2026-05-19 17:32:01','2026-05-19 17:32:01',1);
+INSERT INTO "menu_items" VALUES(23,14,'Order Test Item',NULL,150.0,NULL,NULL,0,0,NULL,0,'2026-05-19 17:32:01','2026-05-20 03:55:57',1);
+INSERT INTO "menu_items" VALUES(24,15,'momo','momo',150.0,'veg',NULL,1,1,NULL,1,'2026-05-19 18:26:14','2026-05-19 18:26:14',2);
+CREATE TABLE order_items (
+	id INTEGER NOT NULL, 
+	order_id INTEGER NOT NULL, 
+	menu_item_id INTEGER NOT NULL, 
+	quantity INTEGER NOT NULL, 
+	unit_price FLOAT NOT NULL, 
+	notes VARCHAR, 
+	kot_status VARCHAR, 
+	kot_number INTEGER, 
+	kot_sent_at DATETIME, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(order_id) REFERENCES orders (id), 
+	FOREIGN KEY(menu_item_id) REFERENCES menu_items (id)
+);
+INSERT INTO "order_items" VALUES(1,2,7,3,150.0,NULL,'served',1,'2026-05-19 17:11:42.404789','2026-05-19 17:11:42');
+INSERT INTO "order_items" VALUES(2,3,9,3,150.0,NULL,'ready',1,'2026-05-19 17:14:08.217809','2026-05-19 17:14:08');
+INSERT INTO "order_items" VALUES(3,4,9,2,150.0,NULL,'preparing',1,'2026-05-19 17:14:08.286635','2026-05-19 17:14:08');
+INSERT INTO "order_items" VALUES(4,5,11,3,150.0,NULL,'sent',1,'2026-05-19 17:17:33.771397','2026-05-19 17:17:33');
+INSERT INTO "order_items" VALUES(5,6,11,2,150.0,NULL,'ready',1,'2026-05-19 17:17:33.815226','2026-05-19 17:17:33');
+INSERT INTO "order_items" VALUES(6,7,11,2,150.0,NULL,'pending',NULL,NULL,'2026-05-19 17:17:33');
+INSERT INTO "order_items" VALUES(7,8,13,3,150.0,NULL,'sent',1,'2026-05-19 17:18:10.091691','2026-05-19 17:18:10');
+INSERT INTO "order_items" VALUES(8,9,13,2,150.0,NULL,'preparing',1,'2026-05-19 17:18:10.135849','2026-05-19 17:18:10');
+INSERT INTO "order_items" VALUES(9,10,13,2,150.0,NULL,'pending',NULL,NULL,'2026-05-19 17:18:10');
+INSERT INTO "order_items" VALUES(10,11,15,3,150.0,NULL,'sent',1,'2026-05-19 17:21:24.508427','2026-05-19 17:21:24');
+INSERT INTO "order_items" VALUES(11,12,15,2,150.0,NULL,'sent',1,'2026-05-19 17:21:24.556359','2026-05-19 17:21:24');
+INSERT INTO "order_items" VALUES(12,13,15,2,150.0,NULL,'pending',NULL,NULL,'2026-05-19 17:21:24');
+INSERT INTO "order_items" VALUES(13,14,17,3,150.0,NULL,'sent',1,'2026-05-19 17:22:05.790993','2026-05-19 17:22:05');
+INSERT INTO "order_items" VALUES(14,15,17,2,150.0,NULL,'sent',1,'2026-05-19 17:22:05.843632','2026-05-19 17:22:05');
+INSERT INTO "order_items" VALUES(15,16,17,2,150.0,NULL,'pending',NULL,NULL,'2026-05-19 17:22:05');
+INSERT INTO "order_items" VALUES(16,17,19,3,150.0,NULL,'sent',1,'2026-05-19 17:30:59.783372','2026-05-19 17:30:59');
+INSERT INTO "order_items" VALUES(17,18,19,2,150.0,NULL,'sent',1,'2026-05-19 17:30:59.854067','2026-05-19 17:30:59');
+INSERT INTO "order_items" VALUES(18,19,19,2,150.0,NULL,'pending',NULL,NULL,'2026-05-19 17:30:59');
+INSERT INTO "order_items" VALUES(19,20,21,3,150.0,NULL,'sent',1,'2026-05-19 17:31:23.276516','2026-05-19 17:31:23');
+INSERT INTO "order_items" VALUES(20,21,21,2,150.0,NULL,'sent',1,'2026-05-19 17:31:23.337797','2026-05-19 17:31:23');
+INSERT INTO "order_items" VALUES(21,22,21,2,150.0,NULL,'pending',NULL,NULL,'2026-05-19 17:31:23');
+INSERT INTO "order_items" VALUES(22,23,23,3,150.0,NULL,'sent',1,'2026-05-19 17:32:01.827652','2026-05-19 17:32:01');
+INSERT INTO "order_items" VALUES(23,24,23,2,150.0,NULL,'sent',1,'2026-05-19 17:32:01.892428','2026-05-19 17:32:01');
+INSERT INTO "order_items" VALUES(24,25,23,2,150.0,NULL,'pending',NULL,NULL,'2026-05-19 17:32:01');
+INSERT INTO "order_items" VALUES(25,26,9,1,150.0,NULL,'sent',1,'2026-05-19 17:34:43.707202','2026-05-19 17:34:43');
+INSERT INTO "order_items" VALUES(26,27,5,1,280.0,NULL,'pending',NULL,NULL,'2026-06-28 11:48:08');
+INSERT INTO "order_items" VALUES(27,27,9,1,150.0,NULL,'pending',NULL,NULL,'2026-06-28 11:48:08');
+INSERT INTO "order_items" VALUES(28,28,5,1,280.0,NULL,'sent',1,'2026-06-28 11:50:45.152815','2026-06-28 11:50:45');
+INSERT INTO "order_items" VALUES(29,28,17,1,150.0,NULL,'sent',1,'2026-06-28 11:50:45.152815','2026-06-28 11:50:45');
+CREATE TABLE orders (
+	id INTEGER NOT NULL, 
+	table_id INTEGER, 
+	order_type VARCHAR NOT NULL, 
+	status VARCHAR, 
+	waiter_id INTEGER, 
+	customer_name VARCHAR, 
+	customer_phone VARCHAR, 
+	notes VARCHAR, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(table_id) REFERENCES restaurant_tables (id), 
+	FOREIGN KEY(waiter_id) REFERENCES users (id)
+);
+INSERT INTO "orders" VALUES(1,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:10:18','2026-05-19 17:10:18',1);
+INSERT INTO "orders" VALUES(2,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:11:42','2026-05-19 17:11:42',1);
+INSERT INTO "orders" VALUES(3,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:14:08','2026-05-19 17:14:08',1);
+INSERT INTO "orders" VALUES(4,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:14:08','2026-05-19 17:14:08',1);
+INSERT INTO "orders" VALUES(5,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:17:33','2026-05-19 17:17:33',1);
+INSERT INTO "orders" VALUES(6,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:17:33','2026-05-19 17:17:33',1);
+INSERT INTO "orders" VALUES(7,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:17:33','2026-05-19 17:17:33',1);
+INSERT INTO "orders" VALUES(8,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:18:10','2026-05-19 17:18:10',1);
+INSERT INTO "orders" VALUES(9,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:18:10','2026-05-19 17:18:10',1);
+INSERT INTO "orders" VALUES(10,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:18:10','2026-05-19 17:18:10',1);
+INSERT INTO "orders" VALUES(11,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:21:24','2026-05-19 17:21:24',1);
+INSERT INTO "orders" VALUES(12,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:21:24','2026-05-19 17:21:24',1);
+INSERT INTO "orders" VALUES(13,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:21:24','2026-05-19 17:21:24',1);
+INSERT INTO "orders" VALUES(14,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:22:05','2026-05-19 17:22:05',1);
+INSERT INTO "orders" VALUES(15,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:22:05','2026-05-19 17:37:03',1);
+INSERT INTO "orders" VALUES(16,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:22:05','2026-05-19 17:22:05',1);
+INSERT INTO "orders" VALUES(17,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:30:59','2026-05-19 17:30:59',1);
+INSERT INTO "orders" VALUES(18,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:30:59','2026-05-19 17:42:34',1);
+INSERT INTO "orders" VALUES(19,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:30:59','2026-05-19 17:30:59',1);
+INSERT INTO "orders" VALUES(20,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:31:23','2026-05-19 17:31:23',1);
+INSERT INTO "orders" VALUES(21,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:31:23','2026-05-19 17:31:23',1);
+INSERT INTO "orders" VALUES(22,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:31:23','2026-05-19 17:31:23',1);
+INSERT INTO "orders" VALUES(23,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:32:01','2026-05-19 17:32:01',1);
+INSERT INTO "orders" VALUES(24,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:32:01','2026-05-19 17:32:01',1);
+INSERT INTO "orders" VALUES(25,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-05-19 17:32:01','2026-05-19 17:32:02',1);
+INSERT INTO "orders" VALUES(26,1,'dine_in','active',1,NULL,NULL,NULL,'2026-05-19 17:34:43','2026-05-19 17:34:43',1);
+INSERT INTO "orders" VALUES(27,1,'dine_in','completed',1,NULL,NULL,NULL,'2026-06-28 11:48:08','2026-06-28 11:49:36',1);
+INSERT INTO "orders" VALUES(28,NULL,'delivery','active',1,NULL,NULL,NULL,'2026-06-28 11:50:45','2026-06-28 11:50:45',1);
+CREATE TABLE recipe_ingredients (
+	id INTEGER NOT NULL, 
+	menu_item_id INTEGER NOT NULL, 
+	ingredient_id INTEGER NOT NULL, 
+	quantity_used FLOAT NOT NULL, 
+	unit VARCHAR NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(menu_item_id) REFERENCES menu_items (id), 
+	FOREIGN KEY(ingredient_id) REFERENCES ingredients (id)
+);
+CREATE TABLE restaurant_tables (
+	id INTEGER NOT NULL, 
+	table_number VARCHAR NOT NULL, 
+	capacity INTEGER NOT NULL, 
+	status VARCHAR, 
+	floor VARCHAR, 
+	pos_x INTEGER, 
+	pos_y INTEGER, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), 
+	PRIMARY KEY (id), 
+	UNIQUE (table_number)
+);
+INSERT INTO "restaurant_tables" VALUES(1,'T10',4,'free','Ground',0,0,'2026-05-19 17:32:01',1);
+CREATE TABLE restaurants (
+	id INTEGER NOT NULL, 
+	name VARCHAR NOT NULL, 
+	slug VARCHAR NOT NULL, 
+	phone VARCHAR, 
+	address VARCHAR, 
+	vat_number VARCHAR, 
+	is_active BOOLEAN, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	PRIMARY KEY (id), 
+	UNIQUE (slug)
+);
+INSERT INTO "restaurants" VALUES(1,'Demo Restaurant','demo',NULL,NULL,NULL,1,'2026-05-19 18:22:58');
+INSERT INTO "restaurants" VALUES(2,'Eve Grill and Chill','1011','9865321456','Buddhanagar','2501456',1,'2026-05-19 18:24:06');
+CREATE TABLE stock_purchases (
+	id INTEGER NOT NULL, 
+	ingredient_id INTEGER NOT NULL, 
+	quantity FLOAT NOT NULL, 
+	cost_per_unit FLOAT NOT NULL, 
+	total_cost FLOAT NOT NULL, 
+	supplier_name VARCHAR, 
+	purchased_by INTEGER, 
+	purchased_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(ingredient_id) REFERENCES ingredients (id), 
+	FOREIGN KEY(purchased_by) REFERENCES users (id)
+);
+INSERT INTO "stock_purchases" VALUES(1,1,10.0,380.0,3800.0,'Farm Direct',1,'2026-05-19 17:21:24');
+INSERT INTO "stock_purchases" VALUES(2,1,10.0,380.0,3800.0,'Farm Direct',1,'2026-05-19 17:22:05');
+INSERT INTO "stock_purchases" VALUES(3,1,10.0,380.0,3800.0,'Farm Direct',1,'2026-05-19 17:31:00');
+INSERT INTO "stock_purchases" VALUES(4,1,10.0,380.0,3800.0,'Farm Direct',1,'2026-05-19 17:31:23');
+INSERT INTO "stock_purchases" VALUES(5,1,10.0,380.0,3800.0,'Farm Direct',1,'2026-05-19 17:32:02');
+CREATE TABLE sync_log (
+	id INTEGER NOT NULL, 
+	table_name VARCHAR NOT NULL, 
+	record_id INTEGER NOT NULL, 
+	action VARCHAR NOT NULL, 
+	data_snapshot VARCHAR, 
+	is_synced BOOLEAN, 
+	synced_at DATETIME, 
+	retry_count INTEGER, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	PRIMARY KEY (id)
+);
+CREATE TABLE users (
+	id INTEGER NOT NULL, 
+	username VARCHAR NOT NULL, 
+	password_hash VARCHAR NOT NULL, 
+	full_name VARCHAR NOT NULL, 
+	role VARCHAR NOT NULL, 
+	is_active BOOLEAN, 
+	pin VARCHAR, 
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, restaurant_id INTEGER REFERENCES restaurants(id), last_login DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (username)
+);
+INSERT INTO "users" VALUES(1,'admin','$2b$12$9Wy4k4sVtAFPmfVaHlUqiOVNI9/24y3aMA.0Z0auMC55Hl0rQG1cG','Administrator','admin',1,'0000','2026-05-19 16:54:15','2026-06-29 08:35:41',1,'2026-06-29 08:35:41.921035');
+INSERT INTO "users" VALUES(2,'superadmin','$2b$12$crMsPTYNU0X27D756grMa.SPz8bs6eEPwWwrmqba.YbDgar22aI6m','Platform Administrator','superadmin',1,NULL,'2026-05-19 18:22:58','2026-06-28 11:43:43',NULL,'2026-06-28 11:43:43.826083');
+INSERT INTO "users" VALUES(3,'jitpur','$2b$12$1vsLMpavnB8xmiQIQGqDLO1.TIvpW8hvQ0ITZRULf36PSo.uXvUqu','Jitpurey Sau','admin',1,NULL,'2026-05-19 18:24:07','2026-05-19 18:24:07',2,NULL);
+COMMIT;
