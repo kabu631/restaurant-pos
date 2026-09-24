@@ -63,33 +63,44 @@ Food 1,000.00  →  Service charge 10 % 100.00  →  Taxable 1,100.00  →  VAT 
 
 PAN-only (non-VAT) restaurants turn VAT off in *Settings → Tax & charges*; rates are editable there too.
 
-## Installation (Windows)
+## Installation
 
-1. Install **Python 3.12+** (tick “Add Python to PATH”) and a database:
-   - **XAMPP** — open the XAMPP Control Panel, *Start* MySQL, then in phpMyAdmin
+1. Install **Python 3.12+** and a database:
+   - **XAMPP** — start MySQL from the XAMPP Control Panel, then in phpMyAdmin
      (http://localhost/phpmyadmin) create a database `restaurant_pos`, collation `utf8mb4_unicode_ci`; or
    - **PostgreSQL** — in pgAdmin create a database `restaurant_pos`.
-2. Double-click **install.bat** — it creates the Python environment, installs packages and makes
-   a `.env` file. Check `DATABASE_URL` in `.env` (the XAMPP line works as-is with XAMPP's default
-   `root` user without a password; for PostgreSQL put in your password).
-3. Double-click the **Restaurant POS** shortcut on the desktop (or `start.bat`).
-   The browser opens at http://127.0.0.1:8000. With XAMPP, MySQL must be started first.
+2. Set up the app:
+   ```
+   python -m venv venv
+   venv\Scripts\activate          # Linux/macOS: source venv/bin/activate
+   pip install -r requirements.txt
+   copy .env.example .env         # Linux/macOS: cp .env.example .env
+   ```
+   Edit `DATABASE_URL` in `.env` (the XAMPP line works as-is with its default `root` user and no
+   password; for PostgreSQL put in your password), and set `SECRET_KEY` to a random value
+   (`python -c "import secrets; print(secrets.token_hex(32))"`).
+3. Run it:
+   ```
+   python run.py
+   ```
+   Opens your browser at http://127.0.0.1:8000. With XAMPP, MySQL must already be running.
+   Set `HOST=0.0.0.0` in `.env` to serve it to other devices on the network — see
+   *Phones, tablets and the kitchen screen* below. For a production deployment, run it behind a
+   proper ASGI server/process manager the way you would any FastAPI app (e.g.
+   `uvicorn app.main:app --host 0.0.0.0 --port 8000`) instead of `run.py`, which is meant for local use.
 
-To try everything on clean data, `venv\Scripts\python scripts\add_sample_restaurant.py` adds a
+To try everything on clean data, `python scripts/add_sample_restaurant.py` adds a
 *Sample Restaurant* (code `sample`) with a menu, 14 tables and staff. To move your data between
 PostgreSQL and XAMPP, use `scripts/copy_database.py --from <url> --to <url>`.
 
 `data/restaurant_mysql.sql` and `data/restaurant_postgres.sql` are reference dumps of the current
 schema with only the demo/sample accounts above — handy for setting up a new database by hand
-(`mysql -u root restaurant_pos < data\restaurant_mysql.sql`, or phpMyAdmin → Import) instead of
+(`mysql -u root restaurant_pos < data/restaurant_mysql.sql`, or phpMyAdmin → Import) instead of
 letting the app create it on first run. They never contain real restaurant data — regenerate them
 with `python scripts/add_sample_restaurant.py` against a fresh database, never by dumping a live one.
 
-If the POS says its Python environment is broken (after moving the folder to a new PC or
-reinstalling Python), run **install.bat** once — it repairs it.
-
 ### Phones, tablets and the kitchen screen
-In `.env` set `HOST=0.0.0.0`, restart, and allow access if Windows asks. *Settings → Devices*
+Set `HOST=0.0.0.0` in `.env`, restart, and allow access if your firewall asks. *Settings → Devices*
 then shows a QR code: scan it on any phone or tablet on the same Wi-Fi, and staff log in with their PIN.
 
 ### Default logins (brand-new database)
