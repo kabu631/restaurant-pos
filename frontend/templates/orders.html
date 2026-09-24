@@ -3,394 +3,745 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>New Order — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Order — Restaurant POS</title>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
+  <script src="/static/js/payment.js"></script>
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { scrollbar-width: none; }
+    @keyframes tap { 0% { transform: scale(1); } 40% { transform: scale(.94); } 100% { transform: scale(1); } }
+    .tapped { animation: tap .18s ease-out; }
+  </style>
 </head>
 <body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
 
-<!-- Top nav -->
-<nav class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between shadow shrink-0">
-  <div class="flex items-center gap-3">
-    <a href="/dashboard" class="text-gray-400 hover:text-white text-sm font-medium">🍽️</a>
-    <span class="text-gray-600">|</span>
-    <span class="font-bold">New Order</span>
-    <span id="nav-table-badge" class="hidden bg-blue-600 text-xs px-2 py-0.5 rounded-full"></span>
-    <span class="hidden md:flex items-center gap-1">
-      <a href="/tables" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Floor Plan</a>
-      <a href="/kitchen" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Kitchen</a>
-      <a href="/billing" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Billing</a>
-    </span>
-  </div>
-  <div class="flex items-center gap-2">
-    <span id="nav-user" class="text-sm text-gray-300 mr-2 hidden sm:block"></span>
-  </div>
-</nav>
+<div id="pos-nav"></div>
 
-<!-- Order type bar -->
-<div class="bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0">
-  <span class="text-sm font-medium text-gray-600">Order Type:</span>
-  <div class="flex gap-2">
-    <button onclick="setOrderType('dine_in')" data-type="dine_in"
-      class="order-type-btn active-type px-3 py-1 rounded-full text-sm font-medium">
-      Dine In
-    </button>
-    <button onclick="setOrderType('takeaway')" data-type="takeaway"
-      class="order-type-btn px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
-      Takeaway
-    </button>
-    <button onclick="setOrderType('delivery')" data-type="delivery"
-      class="order-type-btn px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
-      Delivery
-    </button>
-  </div>
-  <div id="table-selector-wrap" class="flex items-center gap-2 ml-2">
-    <label class="text-sm text-gray-500">Table:</label>
-    <select id="table-select"
-      class="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-      <option value="">— select table —</option>
-    </select>
-  </div>
-  <div id="customer-fields" class="hidden flex items-center gap-2 ml-2">
-    <input id="cust-name" placeholder="Customer name" type="text"
-      class="border rounded px-2 py-1 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-    <input id="cust-phone" placeholder="Phone" type="text"
-      class="border rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-  </div>
-</div>
+<!-- Order header: where this order is going -->
+<div id="order-bar" class="bg-white border-b px-3 py-2 flex items-center gap-2 shrink-0 min-h-[56px]"></div>
 
-<!-- Main area: menu + cart -->
-<div class="flex flex-1 overflow-hidden">
+<div class="flex-1 flex overflow-hidden relative">
 
-  <!-- LEFT: Menu panel -->
-  <div class="flex flex-col w-[60%] border-r bg-white overflow-hidden">
-
-    <!-- Category tabs -->
-    <div id="cat-tabs" class="flex overflow-x-auto gap-0 border-b shrink-0">
-      <!-- injected -->
-    </div>
-
-    <!-- Search -->
-    <div class="px-4 py-2 border-b shrink-0">
-      <input id="item-search" type="text" placeholder="Search items…"
-        class="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        oninput="filterItems()" />
-    </div>
-
-    <!-- Item grid -->
-    <div id="item-grid"
-      class="flex-1 overflow-y-auto p-4 grid gap-3"
-      style="grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));">
-      <!-- injected -->
-    </div>
-  </div>
-
-  <!-- RIGHT: Cart / Order -->
-  <div class="flex flex-col w-[40%] bg-gray-50 overflow-hidden">
-
-    <!-- Cart header -->
-    <div class="px-4 py-3 border-b bg-white shrink-0 flex items-center justify-between">
-      <span class="font-semibold text-gray-800">Current Order</span>
-      <span id="cart-count" class="text-sm text-gray-400">0 items</span>
-    </div>
-
-    <!-- Cart items -->
-    <div id="cart-list" class="flex-1 overflow-y-auto divide-y"></div>
-
-    <!-- Empty state -->
-    <div id="cart-empty" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
-      No items added yet
-    </div>
-
-    <!-- Order notes -->
-    <div class="px-4 py-2 border-t bg-white shrink-0">
-      <input id="order-notes" type="text" placeholder="Order notes (optional)…"
-        class="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-    </div>
-
-    <!-- Totals -->
-    <div class="px-4 py-3 bg-white border-t shrink-0 space-y-1 text-sm">
-      <div class="flex justify-between text-gray-600">
-        <span>Subtotal</span><span id="sub-total">NPR 0.00</span>
+  <!-- Menu -->
+  <section class="flex-1 flex flex-col min-w-0">
+    <div class="bg-white border-b px-3 pt-2.5 pb-2 space-y-2 shrink-0">
+      <div class="relative">
+        <input id="search" type="search" autocomplete="off" placeholder="Search dishes…   ( / )"
+          class="w-full border rounded-xl pl-10 pr-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
       </div>
-      <div class="flex justify-between font-bold text-base border-t pt-2">
-        <span>Total</span><span id="grand-total">NPR 0.00</span>
-      </div>
+      <div id="cats" class="flex gap-2 overflow-x-auto no-scrollbar pb-0.5"></div>
     </div>
+    <div id="menu-grid" class="flex-1 overflow-y-auto p-3 pb-24 md:pb-3 grid gap-2.5 content-start"
+         style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));"></div>
+  </section>
 
-    <!-- Action buttons -->
-    <div class="px-4 pb-4 pt-2 bg-white border-t shrink-0 flex gap-2">
-      <button onclick="clearCart()"
-        class="px-3 py-2 border rounded-lg text-sm text-red-600 hover:bg-red-50">
-        Clear
-      </button>
-      <button onclick="placeOrder(false)"
-        class="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-800 text-white hover:bg-gray-900">
-        Place Order
-      </button>
-      <button onclick="placeOrder(true)"
-        class="flex-1 py-2 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600">
-        Place + KOT
-      </button>
+  <!-- Ticket (right column on tablets/desktop, slide-up sheet on phones) -->
+  <aside id="ticket" class="hidden md:flex fixed md:static inset-0 z-50 md:z-auto md:w-[390px] lg:w-[430px]
+         shrink-0 flex-col bg-white md:border-l">
+    <div class="md:hidden flex items-center justify-between px-4 py-3 border-b">
+      <span class="font-bold text-lg">Current order</span>
+      <button onclick="toggleTicket(false)" class="w-10 h-10 rounded-full hover:bg-gray-100 text-2xl" aria-label="Close">&times;</button>
     </div>
-  </div>
+    <div id="ticket-body" class="flex-1 overflow-y-auto"></div>
+    <div id="ticket-footer" class="border-t bg-white p-3 space-y-2 shrink-0"></div>
+  </aside>
 </div>
 
-<!-- ===== SUCCESS MODAL ===== -->
-<div id="success-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-  <div class="bg-white rounded-xl shadow-2xl w-96 p-6 text-center">
-    <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-      <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-      </svg>
-    </div>
-    <h2 class="text-xl font-bold mb-1">Order Placed!</h2>
-    <p id="success-msg" class="text-gray-500 text-sm mb-5"></p>
-    <div class="flex gap-3">
-      <button onclick="newOrder()"
-        class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">New Order</button>
-      <a id="view-order-link" href="#"
-        class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 text-center">
-        View Order
-      </a>
-    </div>
-  </div>
-</div>
+<!-- Phone: sticky summary bar -->
+<button id="mobile-bar" onclick="toggleTicket(true)"
+  class="md:hidden fixed bottom-3 left-3 right-3 z-20 bg-gray-900 text-white rounded-2xl shadow-xl px-4 py-3.5 flex items-center justify-between">
+</button>
 
 <script>
-  const token = localStorage.getItem('token');
-  if (!token) window.location.href = '/login';
+const { api, esc, money, num, toast, fail } = POS;
 
-  let allItems = [];
-  let activeCatId = null;
-  let orderType = 'dine_in';
-  let cart = [];   // [{menu_item_id, name, price, qty, notes}]
+const S = {
+  me: POS.user(),
+  cfg: { quick_notes: [], tax: {} },
+  cats: [], items: [],
+  activeCat: 'all', search: '',
+  order: null,          // server copy of an existing order
+  table: null,          // table for a new dine-in order
+  type: 'takeaway',
+  guests: null,
+  customer: { name: '', phone: '', address: '' },
+  notes: '',
+  cart: [],             // new items not yet on the server
+  busy: false,
+};
+const CAN_PAY = ['admin', 'cashier', 'superadmin'].includes(S.me.role);
+const STATUS = {
+  pending:   ['Not sent', 'bg-gray-100 text-gray-600'],
+  sent:      ['Waiting for kitchen', 'bg-yellow-100 text-yellow-800'],
+  preparing: ['Accepted · cooking', 'bg-orange-100 text-orange-800'],
+  ready:     ['Ready', 'bg-green-500 text-white animate-pulse'],
+  served:    ['Served', 'bg-blue-50 text-blue-700'],
+  void:      ['Void', 'bg-red-50 text-red-600'],
+};
 
-  async function api(path, opts = {}) {
-    return fetch(path, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
-      ...opts,
-    });
-  }
+// ── Draft cart (survives refresh) ──────────────────────────────────────────
+function draftKey() {
+  return 'pos.cart.' + (S.order ? 'o' + S.order.id : S.table ? 't' + S.table.id : 'new-' + S.type);
+}
+function saveDraft() {
+  try {
+    if (S.cart.length) localStorage.setItem(draftKey(), JSON.stringify(S.cart));
+    else localStorage.removeItem(draftKey());
+  } catch { /* storage full or blocked */ }
+}
+function loadDraft() {
+  try { S.cart = JSON.parse(localStorage.getItem(draftKey()) || '[]'); } catch { S.cart = []; }
+}
+window.addEventListener('beforeunload', e => {
+  if (S.cart.length && !S.leaving) { e.preventDefault(); e.returnValue = ''; }
+});
+function leave(url) { S.leaving = true; location.href = url; }
 
-  // ---- Init ----
-  async function init() {
-    const [catRes, itemRes, tableRes, userRes] = await Promise.all([
-      api('/api/menu/categories'),
-      api('/api/menu/items'),
-      api('/api/tables'),
-      api('/api/auth/me'),
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  if (!POS.guard(['admin', 'cashier', 'waiter', 'superadmin'])) return;
+  const params = new URLSearchParams(location.search);
+  try {
+    const [cfg, cats, items] = await Promise.all([
+      api('/api/settings/pos'), api('/api/menu/categories'), api('/api/menu/items'),
     ]);
+    S.cfg = cfg;
+    S.cats = cats.filter(c => c.is_active);
+    const activeCats = new Set(S.cats.map(c => c.id));
+    S.items = items.filter(i => activeCats.has(i.category_id));
 
-    const cats = await catRes.json();
-    allItems = await itemRes.json();
-    const tables = await tableRes.json();
-    const user = await userRes.json();
-
-    document.getElementById('nav-user').textContent = `${user.full_name} (${user.role})`;
-
-    // Table selector
-    const sel = document.getElementById('table-select');
-    tables.filter(t => t.status === 'free').forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.id;
-      opt.textContent = `${t.table_number} (${t.capacity} seats)`;
-      sel.appendChild(opt);
-    });
-    sel.addEventListener('change', () => {
-      const badge = document.getElementById('nav-table-badge');
-      const opt = sel.options[sel.selectedIndex];
-      if (sel.value) {
-        badge.textContent = opt.textContent;
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
-    });
-
-    // Category tabs
-    const tabsEl = document.getElementById('cat-tabs');
-    tabsEl.innerHTML = `<button onclick="setCat(null)" data-cat="all"
-      class="cat-tab whitespace-nowrap px-5 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600">
-      All</button>`;
-    cats.filter(c => c.is_active).forEach(c => {
-      tabsEl.innerHTML += `<button onclick="setCat(${c.id})" data-cat="${c.id}"
-        class="cat-tab whitespace-nowrap px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-800">
-        ${c.name}</button>`;
-    });
-
-    renderItems();
-  }
-
-  function setCat(id) {
-    activeCatId = id;
-    document.querySelectorAll('.cat-tab').forEach(b => {
-      const active = String(b.dataset.cat) === (id === null ? 'all' : String(id));
-      b.classList.toggle('border-blue-600', active);
-      b.classList.toggle('text-blue-600', active);
-      b.classList.toggle('border-transparent', !active);
-      b.classList.toggle('text-gray-500', !active);
-    });
-    renderItems();
-  }
-
-  function filterItems() { renderItems(); }
-
-  function renderItems() {
-    const search = document.getElementById('item-search').value.toLowerCase();
-    let items = allItems.filter(i => i.is_available);
-    if (activeCatId) items = items.filter(i => i.category_id === activeCatId);
-    if (search) items = items.filter(i => i.name.toLowerCase().includes(search));
-
-    document.getElementById('item-grid').innerHTML = items.map(i => `
-      <button onclick="addToCart(${i.id}, '${i.name.replace(/'/g, "\\'")}', ${i.price})"
-        class="bg-white border-2 border-gray-100 hover:border-blue-400 rounded-xl p-3 text-left
-               transition-all hover:shadow-md active:scale-95 cursor-pointer">
-        <div class="font-semibold text-sm text-gray-800 leading-tight mb-1">${i.name}</div>
-        <div class="text-blue-600 font-bold text-sm">NPR ${i.price.toFixed(2)}</div>
-        ${i.is_vat_applicable ? '<span class="text-xs text-gray-400">+VAT</span>' : ''}
-      </button>`).join('');
-  }
-
-  // ---- Order type ----
-  function setOrderType(type) {
-    orderType = type;
-    document.querySelectorAll('.order-type-btn').forEach(b => {
-      const active = b.dataset.type === type;
-      b.classList.toggle('active-type', active);
-      b.classList.toggle('bg-blue-600', active);
-      b.classList.toggle('text-white', active);
-      b.classList.toggle('bg-gray-100', !active);
-      b.classList.toggle('text-gray-600', !active);
-    });
-    document.getElementById('table-selector-wrap').style.display =
-      type === 'dine_in' ? '' : 'none';
-    document.getElementById('customer-fields').classList.toggle(
-      'hidden', type === 'dine_in');
-  }
-
-  // ---- Cart ----
-  function addToCart(id, name, price) {
-    const existing = cart.find(c => c.menu_item_id === id);
-    if (existing) { existing.qty += 1; }
-    else { cart.push({ menu_item_id: id, name, price, qty: 1, notes: '' }); }
-    renderCart();
-  }
-
-  function changeQty(id, delta) {
-    const idx = cart.findIndex(c => c.menu_item_id === id);
-    if (idx === -1) return;
-    cart[idx].qty += delta;
-    if (cart[idx].qty <= 0) cart.splice(idx, 1);
-    renderCart();
-  }
-
-  function clearCart() {
-    cart = [];
-    renderCart();
-  }
-
-  function renderCart() {
-    const list = document.getElementById('cart-list');
-    const empty = document.getElementById('cart-empty');
-    const count = cart.reduce((s, c) => s + c.qty, 0);
-    const subtotal = cart.reduce((s, c) => s + c.qty * c.price, 0);
-
-    document.getElementById('cart-count').textContent = `${count} item${count !== 1 ? 's' : ''}`;
-    document.getElementById('sub-total').textContent = `NPR ${subtotal.toFixed(2)}`;
-    document.getElementById('grand-total').textContent = `NPR ${subtotal.toFixed(2)}`;
-
-    if (cart.length === 0) {
-      list.innerHTML = '';
-      list.classList.add('hidden');
-      empty.classList.remove('hidden');
-      return;
+    if (params.get('order_id')) {
+      S.order = await api(`/api/orders/${params.get('order_id')}`);
+    } else if (params.get('table_id')) {
+      const tableId = Number(params.get('table_id'));
+      const [tables, active] = await Promise.all([
+        api('/api/tables'), api(`/api/tables/${tableId}/active-order`),
+      ]);
+      S.table = tables.find(t => t.id === tableId) || null;
+      if (active) S.order = active;
+      else if (!S.table) { toast('Table not found', { type: 'error' }); }
+      S.type = 'dine_in';
+      if (params.get('guests')) S.guests = Number(params.get('guests')) || null;
+    } else {
+      S.type = ['takeaway', 'delivery'].includes(params.get('type')) ? params.get('type') : 'takeaway';
     }
-    empty.classList.add('hidden');
-    list.classList.remove('hidden');
+    if (S.order) {
+      S.type = S.order.order_type;
+      S.guests = S.order.guests;
+    }
+  } catch (e) { fail(e); }
 
-    list.innerHTML = cart.map(item => `
-      <div class="flex items-center gap-2 px-4 py-2.5 bg-white">
-        <div class="flex-1 min-w-0">
-          <div class="text-sm font-medium text-gray-800 truncate">${item.name}</div>
-          <div class="text-xs text-gray-400">NPR ${item.price.toFixed(2)} each</div>
+  POS.nav(S.type === 'dine_in' || S.order ? '/tables' : '/orders');
+  loadDraft();
+  renderAll();
+  bindKeys();
+  setInterval(() => { if (!document.hidden) refreshOrder(); }, 10000);
+  document.addEventListener('pos:served', refreshOrder);
+}
+
+async function refreshOrder() {
+  if (!S.order || S.busy) return;
+  try {
+    S.order = await api(`/api/orders/${S.order.id}`);
+    renderBar();
+    renderTicket();
+  } catch { /* offline for a moment — keep showing the last state */ }
+}
+
+function renderAll() {
+  renderBar();
+  renderCats();
+  renderMenu();
+  renderTicket();
+}
+
+// ── Header bar ─────────────────────────────────────────────────────────────
+function renderBar() {
+  const bar = document.getElementById('order-bar');
+  const o = S.order;
+  const back = `<a href="/tables" onclick="event.preventDefault(); leave('/tables')"
+      class="shrink-0 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium">← Floor</a>`;
+  let where;
+  if (o || S.type === 'dine_in') {
+    const tableNo = o ? o.table_number : (S.table && S.table.table_number);
+    where = tableNo
+      ? `<span class="text-lg font-bold">Table ${esc(tableNo)}</span>`
+      : `<span class="text-lg font-bold">${esc(POS.label(S.type))}</span>`;
+  } else {
+    where = ['takeaway', 'delivery'].map(t => `
+      <button onclick="setType('${t}')" class="px-3 py-1.5 rounded-full text-sm font-semibold
+        ${S.type === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+        ${t === 'takeaway' ? '🥡 Takeaway' : '🛵 Delivery'}</button>`).join('') +
+      `<button onclick="pickTableForNew()" class="px-3 py-1.5 rounded-full text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">🍽️ Dine in…</button>`;
+  }
+  const meta = o ? `<span class="text-sm text-gray-500 hidden sm:inline">#${o.id} · ${POS.time(o.created_at)}${o.waiter_name ? ' · ' + esc(o.waiter_name) : ''}</span>` : '';
+  const status = o && o.status !== 'active'
+    ? `<span class="px-2 py-0.5 rounded-full text-xs font-bold ${o.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}">${o.status.toUpperCase()}</span>` : '';
+  const guests = (S.type === 'dine_in' && (!o || o.status === 'active')) ? `
+      <div class="flex items-center gap-1 bg-gray-100 rounded-full px-1 py-0.5" title="Guests">
+        <button onclick="changeGuests(-1)" class="w-8 h-8 rounded-full hover:bg-white text-lg" aria-label="Fewer guests">−</button>
+        <span class="text-sm font-semibold min-w-[3.5rem] text-center">👥 ${S.guests || '–'}</span>
+        <button onclick="changeGuests(1)" class="w-8 h-8 rounded-full hover:bg-white text-lg" aria-label="More guests">+</button>
+      </div>` : '';
+  const menuBtn = o && o.status === 'active' ? `
+      <div class="relative">
+        <button onclick="toggleOrderMenu(event)" class="w-10 h-10 rounded-lg hover:bg-gray-100 text-xl" aria-label="Order options">⋯</button>
+        <div id="order-menu" class="hidden absolute right-0 mt-1 w-60 bg-white rounded-xl shadow-xl border py-1 z-40">
+          ${o.table_id ? '<button onclick="moveTable()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">🔀 Move to another table</button>' : ''}
+          <button onclick="editDetails()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">✏️ Guest details & notes</button>
+          <button onclick="printCheck()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">🧾 Print guest check</button>
+          ${lastKot() ? `<button onclick="POS.printKot(${o.id}, ${lastKot()})" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">🖨 Reprint KOT #${lastKot()}</button>` : ''}
+          <button onclick="submitItems(false)" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">💾 Save without sending</button>
+          ${sentToKitchen() ? `<p class="px-4 py-2.5 text-xs text-gray-400 border-t">🔒 Food has gone to the kitchen — this order can't be cancelled.</p>`
+            : `<button onclick="cancelOrder()" class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">✕ Cancel order</button>`}
         </div>
-        <div class="flex items-center gap-1">
-          <button onclick="changeQty(${item.menu_item_id}, -1)"
-            class="w-6 h-6 rounded-full border text-gray-500 hover:bg-gray-100 text-sm font-bold flex items-center justify-center">−</button>
-          <span class="w-6 text-center text-sm font-semibold">${item.qty}</span>
-          <button onclick="changeQty(${item.menu_item_id}, 1)"
-            class="w-6 h-6 rounded-full border text-gray-500 hover:bg-gray-100 text-sm font-bold flex items-center justify-center">+</button>
-        </div>
-        <div class="text-sm font-semibold text-gray-800 w-16 text-right">
-          ${(item.qty * item.price).toFixed(2)}
-        </div>
-      </div>`).join('');
+      </div>` : '';
+  bar.innerHTML = `${back}<div class="flex items-center gap-2 flex-wrap min-w-0">${where}${status}${meta}</div>
+    <div class="flex-1"></div>${guests}${menuBtn}`;
+}
+
+function toggleOrderMenu(e) {
+  e.stopPropagation();
+  document.getElementById('order-menu').classList.toggle('hidden');
+}
+function closeOrderMenu() {
+  const m = document.getElementById('order-menu');
+  if (m) m.classList.add('hidden');
+}
+document.addEventListener('click', closeOrderMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOrderMenu(); });
+
+/** Anything sent, cooking, ready or served locks the order: it must be billed. */
+function sentToKitchen() {
+  if (!S.order) return false;
+  const c = S.order.counts;
+  return c.in_kitchen + c.ready + c.served > 0;
+}
+
+function lastKot() {
+  if (!S.order) return null;
+  const nums = S.order.items.filter(i => i.kot_number && i.kot_status !== 'void').map(i => i.kot_number);
+  return nums.length ? nums[nums.length - 1] : null;
+}
+
+function setType(t) {
+  try { localStorage.removeItem(draftKey()); } catch {}
+  S.type = t;          // the cart comes along to the new order type
+  saveDraft();
+  renderAll();
+}
+
+async function pickTableForNew() {
+  const tableId = await chooseTable('Seat this order at…');
+  if (tableId) {
+    saveDraft();
+    const cart = S.cart;
+    S.leaving = true;
+    try { localStorage.setItem('pos.cart.t' + tableId, JSON.stringify(cart)); localStorage.removeItem(draftKey()); } catch {}
+    location.href = `/orders?table_id=${tableId}`;
   }
+}
 
-  // ---- Place Order ----
-  async function placeOrder(sendKot) {
-    if (cart.length === 0) { alert('Add items to the order first.'); return; }
-    if (orderType === 'dine_in' && !document.getElementById('table-select').value) {
-      alert('Select a table for dine-in orders.'); return;
-    }
+async function changeGuests(delta) {
+  S.guests = Math.max(1, Math.min(200, (S.guests || 0) + delta));
+  renderBar();
+  if (S.order) saveGuests();
+}
+const saveGuests = POS.debounce(async () => {
+  try { S.order = await api(`/api/orders/${S.order.id}`, { method: 'PATCH', body: { guests: S.guests } }); }
+  catch (e) { fail(e); }
+}, 600);
 
-    const tableId = orderType === 'dine_in'
-      ? parseInt(document.getElementById('table-select').value) || null
-      : null;
+// ── Menu ───────────────────────────────────────────────────────────────────
+function renderCats() {
+  const chip = (id, labelText) => `<button onclick="setCat('${id}')"
+      class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap
+      ${String(S.activeCat) === String(id) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">${labelText}</button>`;
+  document.getElementById('cats').innerHTML =
+    chip('all', 'All') + S.cats.map(c => chip(c.id, esc(c.name))).join('');
+}
+function setCat(id) { S.activeCat = id; renderCats(); renderMenu(); }
 
-    // 1. Create order
-    const orderBody = {
-      order_type: orderType,
-      table_id: tableId,
-      customer_name: document.getElementById('cust-name').value || null,
-      customer_phone: document.getElementById('cust-phone').value || null,
-      notes: document.getElementById('order-notes').value || null,
-    };
-    const oRes = await api('/api/orders', { method: 'POST', body: JSON.stringify(orderBody) });
-    if (!oRes.ok) { const d = await oRes.json(); alert(d.detail || 'Failed to create order'); return; }
-    const order = await oRes.json();
+function visibleItems() {
+  const q = S.search.trim().toLowerCase();
+  return S.items.filter(i =>
+    (q ? (i.name.toLowerCase().includes(q) || (i.name_np || '').includes(q))
+       : (S.activeCat === 'all' || String(i.category_id) === String(S.activeCat))));
+}
 
-    // 2. Add items
-    for (const item of cart) {
-      await api(`/api/orders/${order.id}/items`, {
-        method: 'POST',
-        body: JSON.stringify({ menu_item_id: item.menu_item_id, quantity: item.qty }),
-      });
-    }
+function cartQty(menuItemId) {
+  return S.cart.filter(c => c.menu_item_id === menuItemId).reduce((s, c) => s + c.qty, 0);
+}
 
-    // 3. Optionally send KOT
-    let kotMsg = '';
-    if (sendKot) {
-      const kRes = await api(`/api/orders/${order.id}/kot`, { method: 'POST' });
-      if (kRes.ok) {
-        const k = await kRes.json();
-        kotMsg = ` · KOT #${k.kot_number} sent to kitchen`;
-      }
-    }
-
-    document.getElementById('success-msg').textContent =
-      `Order #${order.id} created${kotMsg}`;
-    document.getElementById('view-order-link').href = `/orders`;
-    document.getElementById('success-modal').classList.remove('hidden');
+function renderMenu() {
+  const grid = document.getElementById('menu-grid');
+  const items = visibleItems().sort((a, b) => (b.is_available - a.is_available));
+  const locked = S.order && S.order.status !== 'active';
+  if (!items.length) {
+    grid.innerHTML = `<div class="col-span-full text-center text-gray-400 py-16">
+      ${S.items.length ? 'No dishes match.' : 'No menu items yet — add them in Menu.'}</div>`;
+    return;
   }
+  grid.innerHTML = items.map(i => {
+    const qty = cartQty(i.id);
+    const off = !i.is_available || locked;
+    return `<button data-item="${i.id}" ${off ? 'disabled' : ''}
+      class="relative text-left bg-white rounded-xl border-2 p-3 min-h-[84px] flex flex-col justify-between transition
+      ${off ? 'opacity-50 cursor-not-allowed' : qty ? 'border-blue-500 shadow-sm' : 'border-transparent shadow-sm hover:border-blue-300 active:bg-blue-50'}">
+      <span class="font-semibold text-gray-900 text-sm leading-snug">${esc(i.name)}</span>
+      ${i.name_np ? `<span class="text-xs text-gray-400 leading-tight">${esc(i.name_np)}</span>` : ''}
+      <span class="flex items-center justify-between mt-1">
+        <span class="text-blue-700 font-bold text-sm">Rs ${Number(i.price).toLocaleString('en-IN')}</span>
+        ${!i.is_available ? '<span class="text-[10px] font-bold text-red-600 uppercase">Sold out</span>' : ''}
+      </span>
+      ${qty ? `<span class="absolute -top-2 -right-2 bg-blue-600 text-white text-xs font-bold rounded-full min-w-[24px] h-6 px-1.5 flex items-center justify-center shadow">${qty}</span>` : ''}
+    </button>`;
+  }).join('');
+}
 
-  function newOrder() {
-    document.getElementById('success-modal').classList.add('hidden');
-    cart = [];
-    renderCart();
-    document.getElementById('order-notes').value = '';
-    document.getElementById('table-select').value = '';
-    document.getElementById('nav-table-badge').classList.add('hidden');
-    init();  // reload free tables
+document.getElementById('menu-grid').addEventListener('click', e => {
+  const btn = e.target.closest('[data-item]');
+  if (!btn || btn.disabled) return;
+  btn.classList.remove('tapped'); void btn.offsetWidth; btn.classList.add('tapped');
+  addToCart(Number(btn.dataset.item));
+});
+
+const searchEl = document.getElementById('search');
+searchEl.addEventListener('input', () => { S.search = searchEl.value; renderMenu(); });
+searchEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const first = visibleItems().find(i => i.is_available);
+    if (first) { addToCart(first.id); searchEl.select(); }
+  } else if (e.key === 'Escape') {
+    searchEl.value = ''; S.search = ''; renderMenu();
   }
-
-  // Init style for active type button
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelector('[data-type="dine_in"]').classList.add('bg-blue-600', 'text-white');
-    document.querySelector('[data-type="dine_in"]').classList.remove('bg-gray-100', 'text-gray-600');
+});
+function bindKeys() {
+  document.addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault(); searchEl.focus();
+    }
   });
+}
 
-  init();
+// ── Cart ───────────────────────────────────────────────────────────────────
+function addToCart(menuItemId, notes = '') {
+  if (S.order && S.order.status !== 'active') return;
+  const mi = S.items.find(i => i.id === menuItemId);
+  if (!mi) return;
+  const key = `${menuItemId}|${notes}`;
+  const line = S.cart.find(c => c.key === key);
+  if (line) line.qty += 1;
+  else S.cart.push({ key, menu_item_id: mi.id, name: mi.name, price: mi.price, qty: 1, notes });
+  saveDraft();
+  renderMenu();
+  renderTicket();
+}
+
+function changeCartQty(idx, delta) {
+  if (!S.cart[idx]) return;
+  S.cart[idx].qty += delta;
+  if (S.cart[idx].qty <= 0) S.cart.splice(idx, 1);
+  saveDraft();
+  renderMenu();
+  renderTicket();
+}
+
+async function editCartNote(idx) {
+  const line = S.cart[idx];
+  if (!line) return;
+  const note = await POS.prompt(`Note for ${line.name}`, {
+    message: 'Tap a quick note or type your own — it prints on the kitchen ticket.',
+    chips: S.cfg.quick_notes, appendChips: true, value: line.notes, placeholder: 'e.g. no spice', okText: 'Save note',
+  });
+  if (note === null) return;
+  const newKey = `${line.menu_item_id}|${note}`;
+  const twin = S.cart.find(c => c.key === newKey && c !== line);
+  if (twin) { twin.qty += line.qty; S.cart.splice(S.cart.indexOf(line), 1); }
+  else { line.notes = note; line.key = newKey; }
+  saveDraft();
+  renderTicket();
+}
+
+function clearCart() {
+  S.cart = [];
+  saveDraft();
+  renderMenu();
+  renderTicket();
+}
+
+// ── Ticket panel ───────────────────────────────────────────────────────────
+function serverItems(status) {
+  return S.order ? S.order.items.filter(i => status(i.kot_status)) : [];
+}
+
+function estimate(subtotal) {
+  const t = S.cfg.tax || {};
+  const sc = t.service_charge_enabled ? subtotal * (t.service_charge_rate || 0) / 100 : 0;
+  const vat = t.vat_enabled ? (subtotal + sc) * (t.vat_rate || 0) / 100 : 0;
+  return subtotal + sc + vat;
+}
+
+function renderTicket() {
+  const o = S.order;
+  const active = !o || o.status === 'active';
+  const sent = serverItems(s => !['pending'].includes(s));
+  const saved = serverItems(s => s === 'pending');
+  const cartTotal = S.cart.reduce((s, c) => s + c.qty * c.price, 0);
+  const cartCount = S.cart.reduce((s, c) => s + c.qty, 0);
+  const subtotal = (o ? o.subtotal : 0) + cartTotal;
+  const toSend = cartCount + saved.reduce((s, i) => s + i.quantity, 0);
+  const ready = o ? o.counts.ready : 0;
+
+  let html = '';
+  if (!o && S.type !== 'dine_in') html += customerFormHtml();
+  if (o && (o.customer_name || o.customer_phone || o.delivery_address || o.notes)) {
+    html += `<div class="px-4 py-2.5 bg-gray-50 border-b text-sm text-gray-600 space-y-0.5">
+      ${o.customer_name || o.customer_phone ? `<div>👤 ${esc(o.customer_name || '')} ${o.customer_phone ? `<a class="text-blue-700" href="tel:${esc(o.customer_phone)}">${esc(o.customer_phone)}</a>` : ''}</div>` : ''}
+      ${o.delivery_address ? `<div>📍 ${esc(o.delivery_address)}</div>` : ''}
+      ${o.notes ? `<div>📝 ${esc(o.notes)}</div>` : ''}</div>`;
+  }
+  if (o && o.status !== 'active') {
+    html += `<div class="m-4 p-4 rounded-xl ${o.status === 'completed' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'} text-sm">
+      This order is <b>${o.status}</b>${o.bill ? ` — bill ${esc(o.bill.bill_number)}` : ''}. It can't be changed.
+      ${o.bill && CAN_PAY ? `<button onclick="POS.printReceipt(${o.bill.id})" class="block mt-2 font-semibold underline">🖨 Reprint receipt</button>` : ''}</div>`;
+  }
+
+  if (sent.length) {
+    html += sectionTitle('Sent to kitchen 🔒', ready ? `<button onclick="serveReady()" class="text-xs font-bold bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg">✓ Serve ${ready} ready</button>` : '');
+    html += sent.map(sentRow).join('');
+  }
+  if (saved.length) {
+    html += sectionTitle('Saved — not sent yet');
+    html += saved.map(savedRow).join('');
+  }
+  if (S.cart.length) {
+    html += sectionTitle('New items', `<button onclick="clearCart()" class="text-xs text-red-600 font-semibold hover:underline">Clear</button>`);
+    html += S.cart.map((c, i) => cartRow(c, i)).join('');
+  }
+  if (!sent.length && !saved.length && !S.cart.length) {
+    html += `<div class="flex flex-col items-center justify-center text-gray-400 py-16 px-6 text-center">
+      <div class="text-5xl mb-3">🍽️</div>
+      <p class="font-medium text-gray-500">Tap dishes on the left to add them</p>
+      <p class="text-sm mt-1">Tap an item here to add a kitchen note like “no spice”.</p></div>`;
+  }
+  document.getElementById('ticket-body').innerHTML = html;
+
+  // Footer: totals + the next action
+  const payTotal = o ? (cartTotal ? estimate(subtotal) : o.estimated_total) : estimate(subtotal);
+  const t = S.cfg.tax || {};
+  const extras = [t.service_charge_enabled ? `SC ${t.service_charge_rate}%` : '', t.vat_enabled ? `VAT ${t.vat_rate}%` : ''].filter(Boolean).join(' + ');
+  document.getElementById('ticket-footer').innerHTML = `
+    <div class="flex justify-between text-sm text-gray-600"><span>Subtotal</span><span class="tabular-nums">${money(subtotal)}</span></div>
+    ${extras ? `<div class="flex justify-between text-sm"><span class="text-gray-500">Total incl. ${extras}</span><span class="font-bold text-gray-900 tabular-nums">≈ ${money(payTotal)}</span></div>` : ''}
+    ${active ? `
+    <button onclick="submitItems(true)" ${toSend ? '' : 'disabled'}
+      class="w-full py-3.5 rounded-xl text-base font-bold text-white bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400">
+      🔔 Send to kitchen${toSend ? ` (${toSend})` : ''}</button>
+    ${CAN_PAY ? billButton(o, subtotal)
+      : `<button onclick="printCheck()" ${subtotal > 0 ? '' : 'disabled'} class="w-full py-3 rounded-xl font-bold border-2 hover:bg-gray-50 disabled:opacity-40">🧾 Guest check</button>`}`
+    : `<button onclick="leave('/tables')" class="w-full py-3 rounded-xl font-bold bg-gray-900 text-white">Back to floor</button>`}`;
+
+  const bar = document.getElementById('mobile-bar');
+  const count = cartCount + (o ? o.items.filter(i => i.kot_status !== 'void').reduce((s, i) => s + i.quantity, 0) : 0);
+  bar.innerHTML = `<span class="flex items-center gap-2 font-semibold">🧾 View order
+      <span class="bg-white/20 rounded-full px-2 py-0.5 text-sm">${count}</span>
+      ${cartCount ? `<span class="bg-orange-500 rounded-full px-2 py-0.5 text-xs">${cartCount} new</span>` : ''}</span>
+    <span class="font-bold tabular-nums">${money(subtotal)}</span>`;
+}
+
+function billButton(o, subtotal) {
+  // The customer pays last; the final bill is printed after payment
+  const openBill = o && o.bill && o.bill.payment_status === 'unpaid' ? o.bill : null;
+  const waiting = o ? o.items.filter(i => i.kot_status === 'sent').reduce((n, i) => n + i.quantity, 0) : 0;
+  return `<button onclick="openBill()" ${subtotal > 0 ? '' : 'disabled'}
+      class="w-full py-3.5 rounded-xl text-base font-bold text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400">
+      💳 Take payment</button>
+    ${waiting ? `<p class="text-xs text-center text-amber-700 font-semibold">⏳ ${waiting} item(s) waiting for the kitchen to accept</p>` : ''}
+    ${openBill ? `<p class="text-xs text-center text-purple-700 font-semibold">🧾 Bill ${esc(openBill.bill_number)} already issued</p>` : ''}`;
+}
+
+function sectionTitle(text, right = '') {
+  return `<div class="px-4 pt-3 pb-1.5 flex items-center justify-between">
+    <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">${text}</span>${right}</div>`;
+}
+
+function sentRow(i) {
+  const [text, cls] = STATUS[i.kot_status] || [i.kot_status, 'bg-gray-100'];
+  const isVoid = i.kot_status === 'void';
+  return `<div class="px-4 py-2.5 flex items-start gap-3 border-b border-gray-100 ${isVoid ? 'opacity-50' : ''}">
+    <span class="font-bold text-gray-900 w-6 text-right ${isVoid ? 'line-through' : ''}">${i.quantity}</span>
+    <div class="flex-1 min-w-0">
+      <div class="font-medium text-gray-900 ${isVoid ? 'line-through' : ''}">${esc(i.name)}</div>
+      ${i.notes ? `<div class="text-xs text-amber-700">📝 ${esc(i.notes)}</div>` : ''}
+      <div class="flex items-center gap-2 mt-1">
+        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${cls}">${text}</span>
+        ${i.kot_number ? `<span class="text-[11px] text-gray-400">KOT #${i.kot_number}</span>` : ''}
+      </div>
+    </div>
+    <div class="text-right">
+      <div class="text-sm font-semibold tabular-nums ${isVoid ? 'line-through' : ''}">${num(i.line_total)}</div>
+    </div>
+  </div>`;
+}
+
+function savedRow(i) {
+  return `<div class="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100">
+    <div class="flex items-center gap-1 shrink-0">
+      <button onclick="changeSavedQty(${i.id}, ${i.quantity - 1})" class="w-9 h-9 rounded-full border text-lg hover:bg-gray-50" aria-label="Less">−</button>
+      <span class="w-7 text-center font-bold">${i.quantity}</span>
+      <button onclick="changeSavedQty(${i.id}, ${i.quantity + 1})" class="w-9 h-9 rounded-full border text-lg hover:bg-gray-50" aria-label="More">+</button>
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="font-medium text-gray-900 truncate">${esc(i.name)}</div>
+      ${i.notes ? `<div class="text-xs text-amber-700 truncate">📝 ${esc(i.notes)}</div>` : ''}
+    </div>
+    <span class="text-sm font-semibold tabular-nums">${num(i.line_total)}</span>
+  </div>`;
+}
+
+function cartRow(c, idx) {
+  return `<div class="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100 bg-orange-50/40">
+    <div class="flex items-center gap-1 shrink-0">
+      <button onclick="changeCartQty(${idx}, -1)" class="w-9 h-9 rounded-full border bg-white text-lg hover:bg-gray-50" aria-label="Less">−</button>
+      <span class="w-7 text-center font-bold">${c.qty}</span>
+      <button onclick="changeCartQty(${idx}, 1)" class="w-9 h-9 rounded-full border bg-white text-lg hover:bg-gray-50" aria-label="More">+</button>
+    </div>
+    <button onclick="editCartNote(${idx})" class="flex-1 min-w-0 text-left">
+      <div class="font-medium text-gray-900 truncate">${esc(c.name)}</div>
+      <div class="text-xs ${c.notes ? 'text-amber-700' : 'text-gray-400'} truncate">📝 ${c.notes ? esc(c.notes) : 'Add note'}</div>
+    </button>
+    <span class="text-sm font-semibold tabular-nums">${num(c.qty * c.price)}</span>
+  </div>`;
+}
+
+function customerFormHtml() {
+  const c = S.customer;
+  return `<div class="p-4 border-b space-y-2 bg-gray-50">
+    <div class="grid grid-cols-2 gap-2">
+      <input id="cust-phone" value="${esc(c.phone)}" placeholder="Phone" inputmode="tel" onchange="lookupCustomer()"
+        oninput="S.customer.phone=this.value" class="border rounded-lg px-3 py-2.5 text-sm">
+      <input id="cust-name" value="${esc(c.name)}" placeholder="Customer name" oninput="S.customer.name=this.value"
+        class="border rounded-lg px-3 py-2.5 text-sm">
+    </div>
+    ${S.type === 'delivery' ? `<input value="${esc(c.address)}" placeholder="Delivery address" oninput="S.customer.address=this.value"
+        class="w-full border rounded-lg px-3 py-2.5 text-sm">` : ''}
+  </div>`;
+}
+
+async function lookupCustomer() {
+  const phone = S.customer.phone.trim();
+  if (phone.replace(/\D/g, '').length < 7) return;
+  try {
+    const c = await api(`/api/customers/lookup?phone=${encodeURIComponent(phone)}`);
+    if (c && !S.customer.name.trim()) {
+      S.customer.name = c.name;
+      document.getElementById('cust-name').value = c.name;
+      toast(`Welcome back, ${c.name}${c.total_visits ? ` · ${c.total_visits} visit(s)` : ''}`, { type: 'info' });
+    }
+  } catch { /* lookup is a nice-to-have */ }
+}
+
+function toggleTicket(open) {
+  const t = document.getElementById('ticket');
+  t.classList.toggle('hidden', !open);
+  t.classList.toggle('flex', open);
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+function cartPayload() {
+  return S.cart.map(c => ({ menu_item_id: c.menu_item_id, quantity: c.qty, notes: c.notes || null }));
+}
+
+/** Put new items on the server; sendKot=true also fires everything unsent to the kitchen. */
+async function submitItems(sendKot) {
+  if (S.busy) return null;
+  if (S.type === 'dine_in' && !S.order && !S.table) { pickTableForNew(); return null; }
+  S.busy = true;
+  try {
+    let result;
+    if (!S.order) {
+      try {
+        result = await api('/api/orders', { method: 'POST', body: {
+          order_type: S.type,
+          table_id: S.table ? S.table.id : null,
+          guests: S.guests,
+          customer_name: S.customer.name.trim() || null,
+          customer_phone: S.customer.phone.trim() || null,
+          delivery_address: S.customer.address.trim() || null,
+          items: cartPayload(),
+          send_kot: sendKot,
+        }});
+      } catch (e) {
+        const existing = e.status === 409 && e.headers && e.headers.get('X-Order-Id');
+        if (!existing) throw e;
+        const ok = await POS.confirm(`${e.message}. Add these items to that order instead?`, { title: 'Table is busy', okText: 'Add to it' });
+        if (!ok) return null;
+        result = await api(`/api/orders/${existing}/items/bulk`, { method: 'POST', body: { items: cartPayload(), send_kot: sendKot } });
+      }
+    } else {
+      result = await api(`/api/orders/${S.order.id}/items/bulk`, { method: 'POST', body: { items: cartPayload(), send_kot: sendKot } });
+    }
+    const oldKey = draftKey();
+    S.cart = [];
+    try { localStorage.removeItem(oldKey); } catch {}
+    S.order = result;
+    S.guests = result.guests;
+
+    if (sendKot) {
+      const kot = result.kot || {};
+      const msg = kot.kot_number
+        ? `KOT #${kot.kot_number} sent to ${kot.stations.join(' & ') || 'kitchen'}` + (kot.items_direct ? ` · ${kot.items_direct} served directly` : '')
+        : 'Items served directly (no kitchen ticket needed)';
+      if (S.order.table_id && !CAN_PAY) {
+        // Waiter flow: back to the floor plan, where the print (if any) happens
+        sessionStorage.setItem('pos.flash', JSON.stringify({
+          message: msg,
+          kot: kot.kot_number ? [S.order.id, kot.kot_number] : null,
+          autoPrint: kot.print_mode === 'browser',
+          thermal: kot.print_mode === 'thermal',
+        }));
+        leave('/tables');
+        return result;
+      }
+      if (kot.print_mode === 'browser') POS.printKot(S.order.id, kot.kot_number);
+      toast(msg, kot.kot_number && kot.print_mode !== 'thermal'
+        ? { action: { label: 'Print KOT', fn: () => POS.printKot(S.order.id, kot.kot_number) } } : {});
+    } else {
+      toast('Order saved');
+    }
+    history.replaceState(null, '', `/orders?order_id=${S.order.id}`);
+    renderAll();
+    return result;
+  } catch (e) {
+    fail(e);
+    return null;
+  } finally {
+    S.busy = false;
+  }
+}
+
+async function changeSavedQty(itemId, qty) {
+  try {
+    if (qty <= 0) await api(`/api/orders/${S.order.id}/items/${itemId}`, { method: 'DELETE' });
+    else await api(`/api/orders/${S.order.id}/items/${itemId}`, { method: 'PUT', body: { quantity: qty } });
+    await refreshOrder();
+  } catch (e) { fail(e); }
+}
+
+async function serveReady() {
+  try {
+    const r = await api(`/api/orders/${S.order.id}/serve-ready`, { method: 'POST' });
+    toast(`${r.served} item(s) marked served`);
+    await refreshOrder();
+    POS.refreshReady();
+  } catch (e) { fail(e); }
+}
+
+async function ensureSaved() {
+  if (S.cart.length || !S.order) {
+    const r = await submitItems(false);
+    return !!r;
+  }
+  return true;
+}
+
+async function openBill() {
+  if (!(await ensureSaved())) return;
+  PaymentDialog.open(S.order.id, {
+    onPaid: () => {
+      const dineIn = !!S.order.table_id;
+      S.cart = [];
+      leave(dineIn ? '/tables' : `/orders?type=${S.type === 'delivery' ? 'delivery' : 'takeaway'}`);
+    },
+    onClose: refreshOrder,
+  });
+}
+
+async function printCheck() {
+  if (!(await ensureSaved())) return;
+  POS.print(`/check/${S.order.id}`);
+}
+
+async function chooseTable(title, excludeId) {
+  let data;
+  try { data = await api('/api/tables/overview'); } catch (e) { fail(e); return null; }
+  const free = data.tables.filter(t => t.status !== 'occupied' && t.id !== excludeId);
+  if (!free.length) { toast('No free tables right now', { type: 'warn' }); return null; }
+  return POS.modal(`
+    <h2 class="text-lg font-bold mb-3">${esc(title)}</h2>
+    <div class="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
+      ${free.map(t => `<button data-t="${t.id}" class="py-3 rounded-xl border-2 ${t.status === 'reserved' ? 'border-amber-300 bg-amber-50' : 'border-green-300 bg-green-50'} hover:shadow font-bold">
+        ${esc(t.table_number)}<span class="block text-xs font-normal text-gray-500">${t.capacity} seats${t.status === 'reserved' ? ' · booked' : ''}</span></button>`).join('')}
+    </div>
+    <button data-x class="w-full mt-4 py-3 rounded-xl border font-medium">Cancel</button>`, {
+    wide: true,
+    onMount: (w, close) => {
+      w.querySelectorAll('[data-t]').forEach(b => b.onclick = () => close(Number(b.dataset.t)));
+      w.querySelector('[data-x]').onclick = () => close(null);
+    },
+  });
+}
+
+async function moveTable() {
+  const tableId = await chooseTable(`Move order #${S.order.id} to…`, S.order.table_id);
+  if (!tableId) return;
+  try {
+    S.order = await api(`/api/orders/${S.order.id}/transfer`, { method: 'POST', body: { table_id: tableId } });
+    toast(`Moved to table ${S.order.table_number}`);
+    renderAll();
+  } catch (e) { fail(e); }
+}
+
+async function editDetails() {
+  const o = S.order;
+  const result = await POS.modal(`
+    <form class="space-y-3">
+      <h2 class="text-lg font-bold">Guest details</h2>
+      <div class="grid grid-cols-2 gap-2">
+        <input name="customer_name" value="${esc(o.customer_name || '')}" placeholder="Name" class="border rounded-lg px-3 py-2.5">
+        <input name="customer_phone" value="${esc(o.customer_phone || '')}" placeholder="Phone" inputmode="tel" class="border rounded-lg px-3 py-2.5">
+      </div>
+      ${o.order_type === 'delivery' ? `<input name="delivery_address" value="${esc(o.delivery_address || '')}" placeholder="Delivery address" class="w-full border rounded-lg px-3 py-2.5">` : ''}
+      <textarea name="notes" rows="2" placeholder="Order note for the kitchen (allergies, occasion…)" class="w-full border rounded-lg px-3 py-2.5">${esc(o.notes || '')}</textarea>
+      <div class="flex gap-2">
+        <button type="button" data-x class="flex-1 py-3 rounded-xl border font-medium">Cancel</button>
+        <button class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold">Save</button>
+      </div>
+    </form>`, {
+    wide: true,
+    onMount: (w, close) => {
+      w.querySelector('[data-x]').onclick = () => close(null);
+      w.querySelector('form').onsubmit = e => { e.preventDefault(); close(Object.fromEntries(new FormData(e.target))); };
+    },
+  });
+  if (!result) return;
+  try {
+    S.order = await api(`/api/orders/${o.id}`, { method: 'PATCH', body: result });
+    toast('Saved');
+    renderAll();
+  } catch (e) { fail(e); }
+}
+
+async function cancelOrder() {
+  const reason = await POS.prompt(`Cancel order #${S.order.id}?`, {
+    message: 'All items are voided, kitchen tickets disappear and the table is freed.',
+    chips: ['Customer left', 'Duplicate order', 'Entered by mistake'],
+    okText: 'Cancel order', danger: true,
+  });
+  if (reason === null) return;
+  try {
+    await api(`/api/orders/${S.order.id}/cancel`, { method: 'POST', body: { reason } });
+    S.cart = [];
+    try { localStorage.removeItem(draftKey()); } catch {}
+    sessionStorage.setItem('pos.flash', JSON.stringify({ message: `Order #${S.order.id} cancelled` }));
+    leave('/tables');
+  } catch (e) { fail(e); }
+}
+
+init();
 </script>
 </body>
 </html>

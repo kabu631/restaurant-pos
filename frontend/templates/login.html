@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
   <style>
     body { background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%); }
     .pin-btn:active { transform: scale(0.92); }
@@ -114,12 +115,31 @@
   <script>
     let pinValue = '';
 
-    // Pre-fill restaurant code from URL param or localStorage
+    // Where to go after signing in: back to the page that sent us here, else the role's home
+    function destination(user) {
+      const next = new URLSearchParams(window.location.search).get('next');
+      if (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login')) return next;
+      return user.home || (user.role === 'superadmin' ? '/admin' : '/dashboard');
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
-      const saved = new URLSearchParams(window.location.search).get('restaurant')
-                    || localStorage.getItem('restaurant_code') || '';
+      const params = new URLSearchParams(window.location.search);
+      const saved = params.get('restaurant') || localStorage.getItem('restaurant_code') || '';
       document.getElementById('restaurant-code').value = saved;
       document.getElementById('pin-restaurant-code').value = saved;
+      // Shared tills: once the restaurant is known, the 4-digit PIN is the fastest way in
+      const mode = params.get('mode') || (saved ? 'pin' : 'password');
+      showTab(mode === 'pin' ? 'pin' : 'password');
+      if (mode !== 'pin') document.getElementById(saved ? 'username' : 'restaurant-code').focus();
+    });
+
+    // Type the PIN on a keyboard too
+    document.addEventListener('keydown', e => {
+      if (document.getElementById('form-pin').classList.contains('hidden')) return;
+      if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+      if (/^\d$/.test(e.key)) pinPress(e.key);
+      else if (e.key === 'Backspace') pinClear();
+      else if (e.key === 'Enter') doPin();
     });
 
     function showTab(tab) {
@@ -172,10 +192,9 @@
         });
         const data = await res.json();
         if (res.ok) {
-          localStorage.setItem('token', data.access_token);
-          localStorage.setItem('user', JSON.stringify(data.user));
+          POS.setSession(data);
           localStorage.setItem('restaurant_code', restaurantCode);
-          window.location.href = '/dashboard';
+          window.location.href = destination(data.user);
         } else {
           errEl.textContent = data.detail || 'Invalid PIN';
           errEl.classList.remove('hidden');
@@ -211,11 +230,9 @@
         });
         const data = await res.json();
         if (res.ok) {
-          localStorage.setItem('token', data.access_token);
-          localStorage.setItem('user', JSON.stringify(data.user));
+          POS.setSession(data);
           if (restaurantCode) localStorage.setItem('restaurant_code', restaurantCode);
-          // Superadmin goes to /admin, everyone else to /dashboard
-          window.location.href = data.user.role === 'superadmin' ? '/admin' : '/dashboard';
+          window.location.href = destination(data.user);
         } else {
           errEl.textContent = data.detail || 'Login failed. Check your credentials.';
           errEl.classList.remove('hidden');

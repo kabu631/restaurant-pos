@@ -4,30 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inventory — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
 <!-- Nav -->
-<nav class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between shadow">
-  <div class="flex items-center gap-3">
-    <a href="/dashboard" class="text-gray-400 hover:text-white text-sm font-medium">🍽️</a>
-    <span class="text-gray-600">|</span>
-    <span class="font-bold">Inventory</span>
-    <span class="hidden md:flex items-center gap-1">
-      <a href="/orders" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Orders</a>
-      <a href="/billing" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Billing</a>
-      <a href="/menu" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Menu</a>
-    </span>
-  </div>
-  <div class="flex items-center gap-3">
-    <span id="nav-user" class="text-sm text-gray-300"></span>
-    <button onclick="openAddIngredientModal()"
-      class="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-sm font-medium">
-      + Add Ingredient
-    </button>
-  </div>
-</nav>
+<div id="pos-nav"></div>
+<div class="bg-white border-b px-4 py-2.5 flex items-center justify-between">
+  <h1 class="font-bold text-gray-800">📦 Inventory</h1>
+  <span id="nav-user" class="hidden"></span>
+  <button onclick="openAddIngredientModal()"
+    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+    + Add Ingredient
+  </button>
+</div>
 
 <!-- Tabs -->
 <div class="bg-white border-b px-6 flex shadow-sm">
@@ -280,6 +271,7 @@
 
 <script>
   const token = localStorage.getItem('token');
+  POS.nav('/inventory');
   if (!token) window.location.href = '/login';
 
   let allIngredients = [];

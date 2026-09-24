@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from app.database import Base
+from app.utils import nepal
 
 
 class Order(Base):
@@ -14,9 +15,11 @@ class Order(Base):
     waiter_id     = Column(Integer, ForeignKey("users.id"), nullable=True)
     customer_name  = Column(String, nullable=True)
     customer_phone = Column(String, nullable=True)
-    notes         = Column(String, nullable=True)
-    created_at    = Column(DateTime, server_default=func.now())
-    updated_at    = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    delivery_address = Column(Text, nullable=True)
+    guests        = Column(Integer, nullable=True)   # covers seated at the table
+    notes         = Column(Text, nullable=True)
+    created_at    = Column(DateTime, default=nepal.now, server_default=func.now())
+    updated_at    = Column(DateTime, default=nepal.now, server_default=func.now(), onupdate=nepal.now)
 
 
 class OrderItem(Base):
@@ -28,7 +31,7 @@ class OrderItem(Base):
     quantity     = Column(Integer, nullable=False, default=1)
     unit_price   = Column(Float, nullable=False)      # Price at time of order
     notes        = Column(String, nullable=True)      # e.g. "no spice"
-    kot_status   = Column(String, default="pending")  # pending/sent/preparing/ready/served
-    kot_number   = Column(Integer, nullable=True)
+    kot_status   = Column(String, default="pending")  # pending/sent/preparing/ready/served/void
+    kot_number   = Column(Integer, nullable=True)     # daily ticket number, per restaurant
     kot_sent_at  = Column(DateTime, nullable=True)
-    created_at   = Column(DateTime, server_default=func.now())
+    created_at   = Column(DateTime, default=nepal.now, server_default=func.now())

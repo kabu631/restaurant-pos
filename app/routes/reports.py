@@ -1,12 +1,13 @@
 """
 Revenue reports and CSV export endpoints.
-All dates/times are handled in NPT (UTC+5:45) for display but stored as UTC.
+Timestamps are stored as naive Nepal time (see app.utils.nepal), so date
+ranges are plain half-open [start, end) comparisons in NPT.
 """
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, timedelta
 from typing import Optional, List
 import csv
 import io
@@ -20,36 +21,28 @@ from app.models.table import RestaurantTable
 from app.models.inventory import Ingredient
 from app.models.user import User
 from app.models.audit import AuditTrail
-from app.routes.auth import get_current_user
+from app.routes.auth import require_admin, require_roles
+from app.routes.billing import payment_breakdown
+from app.utils import nepal
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
-NPT = timezone(timedelta(hours=5, minutes=45))
+# Sales figures: managers and cashiers; the audit trail: admins only
+_report_user = require_roles("admin", "cashier", "superadmin")
 
 
-# ── Timezone helpers ──────────────────────────────────────────────────────────
+# ── Time helpers ──────────────────────────────────────────────────────────────
 
 def _npt_now() -> datetime:
-    return datetime.now(NPT)
+    return nepal.now()
 
 
-def _as_utc(dt_naive) -> datetime:
-    """Treat a naive datetime as UTC and return timezone-aware UTC."""
-    if dt_naive is None:
-        return None
-    if dt_naive.tzinfo is not None:
-        return dt_naive.astimezone(timezone.utc)
-    return dt_naive.replace(tzinfo=timezone.utc)
-
-
-def _to_npt(dt_naive) -> datetime:
-    return _as_utc(dt_naive).astimezone(NPT) if dt_naive else None
+def _to_npt(dt) -> datetime:
+    return nepal.to_npt(dt)
 
 
 def _day_range(d: date) -> tuple:
-    s = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=NPT)
-    e = datetime(d.year, d.month, d.day, 23, 59, 59, 999999, tzinfo=NPT)
-    return s.astimezone(timezone.utc), e.astimezone(timezone.utc)
+    return nepal.day_bounds(d)
 
 
 def _week_range(d: date) -> tuple:
@@ -71,17 +64,16 @@ def _month_range(year: int, month: int) -> tuple:
 
 def _fiscal_year_range(fy: str) -> tuple:
     """
-    '2081/82' → (start_utc, end_utc, [month_date, ...])
-    Fiscal year starts July 16. BS 2081 = AD 2024 + 57 = 2081.
+    '2081/82' → (start, end, [month_date, ...]) — fiscal year starts July 16.
     """
-    bs_year  = int(fy.split('/')[0])
-    ad_start = bs_year - 57          # e.g. 2081 - 57 = 2024
-    fy_start = datetime(ad_start, 7, 16, 0, 0, 0, tzinfo=NPT).astimezone(timezone.utc)
-    fy_end   = datetime(ad_start + 1, 7, 16, 0, 0, 0, tzinfo=NPT).astimezone(timezone.utc)
-    # 12 month anchors: Jul → Jun of next year
+    try:
+        fy_start, fy_end = nepal.fiscal_year_bounds(fy)
+    except (ValueError, IndexError):
+        raise HTTPException(400, "fy must look like 2083/84")
+    # 13 month anchors: mid-July → mid-July covers parts of 13 calendar months
     months = []
-    y, m = ad_start, 7
-    for _ in range(12):
+    y, m = fy_start.year, 7
+    for _ in range(13):
         months.append(date(y, m, 1))
         m += 1
         if m > 12:
@@ -91,12 +83,7 @@ def _fiscal_year_range(fy: str) -> tuple:
 
 
 def _current_fiscal_year() -> str:
-    now = _npt_now()
-    if now.month < 7 or (now.month == 7 and now.day < 16):
-        bs = now.year + 56
-    else:
-        bs = now.year + 57
-    return f"{bs}/{str(bs + 1)[-2:]}"
+    return nepal.fiscal_year()
 
 
 def _prev_month(year: int, month: int) -> tuple:
@@ -116,7 +103,7 @@ def _bills_in_range(db: Session, restaurant_id, start: datetime, end: datetime):
     q = db.query(Bill).filter(
         Bill.payment_status == "paid",
         Bill.created_at >= start,
-        Bill.created_at <= end,
+        Bill.created_at < end,
     )
     if restaurant_id:
         q = q.filter(Bill.restaurant_id == restaurant_id)
@@ -126,7 +113,8 @@ def _bills_in_range(db: Session, restaurant_id, start: datetime, end: datetime):
 def _top_items(order_ids: list, db: Session, limit: int = 5) -> list:
     if not order_ids:
         return []
-    items = db.query(OrderItem).filter(OrderItem.order_id.in_(order_ids)).all()
+    items = db.query(OrderItem).filter(OrderItem.order_id.in_(order_ids),
+                                       OrderItem.kot_status != "void").all()
     agg: dict = {}
     for oi in items:
         if oi.menu_item_id not in agg:
@@ -166,10 +154,7 @@ def _revenue_stats(bills: list, db: Session, restaurant_id) -> dict:
     n = len(bills)
     avg = round(total_rev / n, 2) if n else 0.0
 
-    by_method: dict = {}
-    for b in bills:
-        m = b.payment_method or "unknown"
-        by_method[m] = round(by_method.get(m, 0) + (b.grand_total or 0), 2)
+    by_method = payment_breakdown(db, bills)
 
     order_ids = [b.order_id for b in bills]
     by_type: dict = {}
@@ -250,7 +235,7 @@ def get_revenue(
     year:     Optional[int] = Query(None),
     fy:       Optional[str] = Query(None),                 # "2081/82"
     db:       Session       = Depends(get_db),
-    current_user: User      = Depends(get_current_user),
+    current_user: User      = Depends(_report_user),
 ):
     if period not in ("daily", "weekly", "monthly", "yearly"):
         raise HTTPException(400, "period must be daily/weekly/monthly/yearly")
@@ -297,7 +282,7 @@ def get_revenue(
 def get_comparison(
     period: str      = Query("monthly"),
     db: Session      = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_report_user),
 ):
     rid = current_user.restaurant_id
     now = _npt_now()
@@ -389,7 +374,7 @@ def export_sales(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date:   Optional[str] = Query(None, alias="to"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_report_user),
 ):
     start, end, d_from, d_to = _parse_date_range(from_date, to_date)
     rid = current_user.restaurant_id
@@ -409,7 +394,8 @@ def export_sales(
             if tbl:
                 table_num = tbl.table_number
         # Items summary
-        ois = db.query(OrderItem).filter(OrderItem.order_id == b.order_id).all()
+        ois = db.query(OrderItem).filter(OrderItem.order_id == b.order_id,
+                                        OrderItem.kot_status != "void").all()
         items_str = "; ".join(
             f"{oi.quantity}x {db.query(MenuItem).filter(MenuItem.id == oi.menu_item_id).first().name if db.query(MenuItem).filter(MenuItem.id == oi.menu_item_id).first() else '?'}"
             for oi in ois
@@ -455,7 +441,7 @@ def export_items(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date:   Optional[str] = Query(None, alias="to"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_report_user),
 ):
     start, end, d_from, d_to = _parse_date_range(from_date, to_date)
     rid = current_user.restaurant_id
@@ -476,7 +462,8 @@ def export_items(
             "Unit Cost (NPR)", "Total Cost (NPR)", "Profit (NPR)", "Margin %",
         ], f"items_report_{d_from}_{d_to}.csv")
 
-    ois = db.query(OrderItem).filter(OrderItem.order_id.in_(order_ids)).all()
+    ois = db.query(OrderItem).filter(OrderItem.order_id.in_(order_ids),
+                                     OrderItem.kot_status != "void").all()
     agg: dict = {}  # {menu_item_id: {qty, revenue}}
     for oi in ois:
         if oi.menu_item_id not in agg:
@@ -521,7 +508,7 @@ def export_items(
 @router.get("/export/inventory")
 def export_inventory(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_report_user),
 ):
     rid = current_user.restaurant_id
     q = db.query(Ingredient)
@@ -561,7 +548,7 @@ def export_vat(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date:   Optional[str] = Query(None, alias="to"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_report_user),
 ):
     start, end, d_from, d_to = _parse_date_range(from_date, to_date)
     rid = current_user.restaurant_id
@@ -609,7 +596,7 @@ def export_audit(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date:   Optional[str] = Query(None, alias="to"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     start, end, d_from, d_to = _parse_date_range(from_date, to_date)
     rid = current_user.restaurant_id

@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 psycopg2-binary
+PyMySQL
 jinja2
 python-multipart
 bcrypt

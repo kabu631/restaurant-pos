@@ -3,12 +3,13 @@ from app.models.user import User
 from app.models.menu import Category, MenuItem
 from app.models.table import RestaurantTable
 from app.models.order import Order, OrderItem
-from app.models.bill import Bill
+from app.models.bill import Bill, BillPayment
 from app.models.inventory import Ingredient, StockPurchase, AppSettings
 from app.models.recipe import RecipeIngredient
 from app.models.customer import Customer
 from app.models.audit import AuditTrail
 from app.models.sync_log import SyncLog
+from app.models.reservation import Reservation
 
 __all__ = [
     "Restaurant",
@@ -19,6 +20,7 @@ __all__ = [
     "Order",
     "OrderItem",
     "Bill",
+    "BillPayment",
     "Ingredient",
     "StockPurchase",
     "AppSettings",
@@ -26,4 +28,5 @@ __all__ = [
     "Customer",
     "AuditTrail",
     "SyncLog",
+    "Reservation",
 ]

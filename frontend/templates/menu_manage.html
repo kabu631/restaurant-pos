@@ -4,28 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Menu Management — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-  <!-- Top bar -->
-  <header class="bg-gray-900 text-white shadow px-4 py-2.5 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <a href="/dashboard" class="text-gray-400 hover:text-white text-sm font-medium">🍽️</a>
-      <span class="text-gray-600">|</span>
-      <h1 class="font-bold">Menu Management</h1>
-      <span class="hidden md:flex items-center gap-1">
-        <a href="/orders" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Orders</a>
-        <a href="/inventory" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Inventory</a>
-        <a href="/billing" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Billing</a>
-      </span>
-    </div>
-    <button onclick="openItemModal()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg font-medium text-sm">
+  <div id="pos-nav"></div>
+  <div class="bg-white border-b px-4 py-2.5 flex items-center justify-between">
+    <h1 class="font-bold text-gray-800">📖 Menu</h1>
+    <button onclick="openItemModal()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg font-semibold text-sm">
       + Add Item
     </button>
-  </header>
+  </div>
 
-  <div class="flex h-[calc(100vh-64px)]">
+  <div class="flex h-[calc(100vh-112px)]">
 
     <!-- Sidebar: Categories -->
     <aside class="w-64 bg-white shadow-sm p-4 overflow-y-auto flex-shrink-0">
@@ -123,7 +115,7 @@
   <div id="cat-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-bold text-gray-800">Add Category</h2>
+        <h2 id="cat-modal-title" class="text-lg font-bold text-gray-800">Add Category</h2>
         <button onclick="closeCatModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
       </div>
       <form onsubmit="saveCategory(event)" class="space-y-3">
@@ -131,10 +123,23 @@
           <label class="block text-sm font-medium text-gray-600 mb-1">Category Name *</label>
           <input id="cat-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
+        <input type="hidden" id="cat-id" />
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Prepared at</label>
+          <select id="cat-station" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="kitchen">🍳 Kitchen — prints on the kitchen ticket (KOT)</option>
+            <option value="bar">🍹 Bar — prints on the bar ticket (BOT)</option>
+            <option value="none">🥤 No ticket — served from the counter (bottled drinks)</option>
+          </select>
+        </div>
         <div>
           <label class="block text-sm font-medium text-gray-600 mb-1">Display Order</label>
           <input id="cat-order" type="number" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          <input id="cat-active" type="checkbox" checked class="w-4 h-4 accent-blue-700" /> Show on the order screen
+        </label>
+        <div id="cat-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
         <div class="flex gap-3 pt-1">
           <button type="button" onclick="closeCatModal()" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium">Cancel</button>
           <button type="submit" class="flex-1 bg-blue-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-800">Save</button>
@@ -144,8 +149,11 @@
   </div>
 
   <script>
-    const token = localStorage.getItem('token');
-    if (!token) window.location.href = '/login';
+    if (!POS.guard(['admin', 'superadmin'])) throw new Error('redirecting');
+    POS.nav('/menu');
+    const token = POS.token();
+    const esc = POS.esc;
+    const STATION_ICON = { kitchen: '🍳', bar: '🍹', none: '🥤' };
 
     const authHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
 
@@ -178,13 +186,14 @@
       categories.forEach(cat => {
         const count = items.filter(i => i.category_id === cat.id).length;
         ul.innerHTML += `
-          <li>
+          <li class="flex items-center gap-1">
             <button onclick="filterCategory(${cat.id})"
-              class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex justify-between items-center
-                     ${activeCategoryId === cat.id ? 'bg-blue-700 text-white' : 'text-gray-700 hover:bg-gray-100'}">
-              <span>${cat.name}</span>
+              class="flex-1 min-w-0 text-left px-3 py-2 rounded-lg text-sm transition-colors flex justify-between items-center
+                     ${activeCategoryId === cat.id ? 'bg-blue-700 text-white' : 'text-gray-700 hover:bg-gray-100'} ${cat.is_active ? '' : 'opacity-50'}">
+              <span class="truncate">${STATION_ICON[cat.station || 'kitchen'] || ''} ${esc(cat.name)}</span>
               <span class="text-xs ${activeCategoryId === cat.id ? 'text-blue-200' : 'text-gray-400'}">${count}</span>
             </button>
+            <button onclick="openCatModal(${cat.id})" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 shrink-0" title="Edit category">✏️</button>
           </li>`;
       });
     }
@@ -224,7 +233,7 @@
 
       container.innerHTML = Object.entries(grouped).map(([catName, catItems]) => `
         <div class="mb-8">
-          <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">${catName}</h3>
+          <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">${esc(catName)}</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             ${catItems.map(item => itemCard(item)).join('')}
           </div>
@@ -238,8 +247,8 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
           <div class="flex items-start justify-between mb-2">
             <div class="flex-1 min-w-0">
-              <p class="font-semibold text-gray-800 truncate">${item.name}</p>
-              ${item.name_np ? `<p class="text-xs text-gray-400">${item.name_np}</p>` : ''}
+              <p class="font-semibold text-gray-800 truncate">${esc(item.name)}</p>
+              ${item.name_np ? `<p class="text-xs text-gray-400">${esc(item.name_np)}</p>` : ''}
             </div>
             <button onclick="toggleItem(${item.id})"
               class="ml-2 flex-shrink-0 px-2 py-1 rounded-full text-xs font-semibold ${avail ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">
@@ -247,12 +256,12 @@
             </button>
           </div>
 
-          ${item.description ? `<p class="text-xs text-gray-500 mb-2 line-clamp-2">${item.description}</p>` : ''}
+          ${item.description ? `<p class="text-xs text-gray-500 mb-2 line-clamp-2">${esc(item.description)}</p>` : ''}
 
           <div class="flex items-center justify-between mt-3">
             <div>
               <span class="text-lg font-bold text-gray-800">Rs. ${item.price.toLocaleString()}</span>
-              ${item.variant_type ? `<span class="ml-2 text-xs text-gray-400">${item.variant_type}</span>` : ''}
+              ${item.variant_type ? `<span class="ml-2 text-xs text-gray-400">${esc(item.variant_type)}</span>` : ''}
             </div>
             <div class="flex gap-1">
               ${item.is_vat_applicable ? '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded">VAT</span>' : ''}
@@ -299,7 +308,7 @@
       // Populate category dropdown
       const sel = document.getElementById('item-category');
       sel.innerHTML = '<option value="">Select...</option>' +
-        categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
 
       if (editId) {
         const item = items.find(i => i.id === editId);
@@ -372,9 +381,15 @@
       }
     }
 
-    function openCatModal() {
-      document.getElementById('cat-name').value = '';
-      document.getElementById('cat-order').value = '0';
+    function openCatModal(editId = null) {
+      const cat = editId ? categories.find(c => c.id === editId) : null;
+      document.getElementById('cat-modal-title').textContent = cat ? 'Edit Category' : 'Add Category';
+      document.getElementById('cat-id').value = cat ? cat.id : '';
+      document.getElementById('cat-name').value = cat ? cat.name : '';
+      document.getElementById('cat-order').value = cat ? cat.display_order : '0';
+      document.getElementById('cat-station').value = cat ? (cat.station || 'kitchen') : 'kitchen';
+      document.getElementById('cat-active').checked = cat ? cat.is_active : true;
+      document.getElementById('cat-error').classList.add('hidden');
       document.getElementById('cat-modal').classList.remove('hidden');
     }
 
@@ -384,21 +399,31 @@
 
     async function saveCategory(e) {
       e.preventDefault();
-      const res = await fetch('/api/menu/categories', {
-        method: 'POST',
+      const id = document.getElementById('cat-id').value;
+      const res = await fetch(id ? `/api/menu/categories/${id}` : '/api/menu/categories', {
+        method: id ? 'PUT' : 'POST',
         headers: authHeaders,
         body: JSON.stringify({
           name: document.getElementById('cat-name').value,
           display_order: parseInt(document.getElementById('cat-order').value) || 0,
-          is_active: true,
+          station: document.getElementById('cat-station').value,
+          is_active: document.getElementById('cat-active').checked,
         }),
       });
       if (res.ok) {
         const cat = await res.json();
-        categories.push(cat);
+        const idx = categories.findIndex(c => c.id === cat.id);
+        if (idx >= 0) categories[idx] = cat; else categories.push(cat);
+        categories.sort((a, b) => a.display_order - b.display_order || a.id - b.id);
         closeCatModal();
         renderCategories();
         renderItems();
+        POS.toast(id ? 'Category updated' : 'Category added');
+      } else {
+        const err = await res.json();
+        const el = document.getElementById('cat-error');
+        el.textContent = err.detail || 'Could not save the category';
+        el.classList.remove('hidden');
       }
     }
 

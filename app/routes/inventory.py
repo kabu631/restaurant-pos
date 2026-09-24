@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime, timezone
 
 from app.database import get_db, db_transaction
 
@@ -13,7 +12,8 @@ from app.models.inventory import Ingredient, StockPurchase
 from app.models.recipe import RecipeIngredient
 from app.models.menu import MenuItem
 from app.models.user import User
-from app.routes.auth import get_current_user, require_admin
+from app.routes.auth import require_admin
+from app.utils import nepal
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -166,7 +166,7 @@ def restock(ing_id: int, body: StockPurchaseCreate,
         db.add(purchase)
         ing.current_stock = round(ing.current_stock + body.quantity, 4)
         ing.cost_per_unit = body.cost_per_unit
-        ing.last_purchased_at = datetime.now(timezone.utc)
+        ing.last_purchased_at = nepal.now()
         if body.supplier_name:
             ing.supplier_name = body.supplier_name
         db.commit()
@@ -278,13 +278,23 @@ def add_recipe_ingredient(menu_item_id: int, body: RecipeIngredientCreate,
             "quantity_used": row.quantity_used, "unit": row.unit}
 
 
+def _get_recipe_row(db: Session, row_id: int, user: User) -> RecipeIngredient:
+    q = (db.query(RecipeIngredient)
+           .join(MenuItem, MenuItem.id == RecipeIngredient.menu_item_id)
+           .filter(RecipeIngredient.id == row_id))
+    if user.restaurant_id:
+        q = q.filter(MenuItem.restaurant_id == user.restaurant_id)
+    row = q.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Recipe ingredient not found")
+    return row
+
+
 @router.put("/recipes/items/{row_id}")
 def update_recipe_ingredient(row_id: int, body: RecipeIngredientUpdate,
                              db: Session = Depends(get_db),
-                             _=Depends(get_current_user)):
-    row = db.query(RecipeIngredient).filter(RecipeIngredient.id == row_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Recipe ingredient not found")
+                             current_user: User = Depends(require_admin)):
+    row = _get_recipe_row(db, row_id, current_user)
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(row, field, value)
     db.commit()
@@ -294,10 +304,8 @@ def update_recipe_ingredient(row_id: int, body: RecipeIngredientUpdate,
 
 @router.delete("/recipes/items/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_recipe_ingredient(row_id: int, db: Session = Depends(get_db),
-                              _=Depends(get_current_user)):
-    row = db.query(RecipeIngredient).filter(RecipeIngredient.id == row_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Recipe ingredient not found")
+                              current_user: User = Depends(require_admin)):
+    row = _get_recipe_row(db, row_id, current_user)
     db.delete(row)
     db.commit()
 

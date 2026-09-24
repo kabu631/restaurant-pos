@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check – Order #{{ order.id }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #000;
+    background: #f0f0f0; display: flex; flex-direction: column; align-items: center; padding: 20px;
+  }
+  .receipt { background: #fff; width: 320px; padding: 16px; border: 1px solid #ccc; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .xl { font-size: 18px; }
+  .divider { border-top: 1px dashed #555; margin: 6px 0; }
+  .divider-solid { border-top: 2px solid #222; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { font-size: 12px; padding: 2px 0; vertical-align: top; }
+  th { border-bottom: 1px solid #333; }
+  td.num { text-align: right; padding-left: 4px; }
+  .total-row { font-weight: bold; font-size: 15px; }
+  .banner { border: 2px solid #000; text-align: center; font-weight: bold; padding: 3px; margin: 6px 0; }
+  .btn { margin-top: 16px; padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px;
+         cursor: pointer; font-family: system-ui, sans-serif; background: #1d4ed8; color: #fff; }
+  @media print {
+    body { background: #fff; padding: 0; display: block; }
+    .receipt { width: 100%; border: none; padding: 4px; }
+    .btn { display: none; }
+    @page { size: 80mm auto; margin: 4mm 2mm; }
+  }
+</style>
+</head>
+<body>
+<div class="receipt">
+  <div class="center">
+    <div class="xl bold">{{ restaurant.name }}</div>
+    {% if restaurant.address %}<div>{{ restaurant.address }}</div>{% endif %}
+    {% if restaurant.phone %}<div>Tel: {{ restaurant.phone }}</div>{% endif %}
+  </div>
+  <div class="banner">GUEST CHECK — NOT A TAX INVOICE</div>
+  <div class="row"><span>Order</span><span class="bold">#{{ order.id }}</span></div>
+  <div class="row"><span>Printed</span><span>{{ printed_at }}</span></div>
+  {% if table_number %}
+  <div class="row"><span>Table</span><span>{{ table_number }}{% if order.guests %} · {{ order.guests }} pax{% endif %}</span></div>
+  {% else %}
+  <div class="row"><span>Type</span><span>{{ order.order_type.replace('_',' ').title() }}</span></div>
+  {% endif %}
+  {% if order.customer_name %}<div class="row"><span>Guest</span><span>{{ order.customer_name }}</span></div>{% endif %}
+  <div class="divider"></div>
+  <table>
+    <thead>
+      <tr><th style="text-align:left">Item</th><th style="text-align:right">Qty</th>
+          <th style="text-align:right">Rate</th><th style="text-align:right">Amt</th></tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.name }}</td>
+        <td class="num">{{ line.quantity }}</td>
+        <td class="num">{{ "%.2f"|format(line.unit_price) }}</td>
+        <td class="num">{{ "%.2f"|format(line.line_total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="divider"></div>
+  <div class="row"><span>Subtotal</span><span>{{ "%.2f"|format(totals.subtotal) }}</span></div>
+  {% if totals.discount_amount > 0 %}
+  <div class="row"><span>Discount</span><span>-{{ "%.2f"|format(totals.discount_amount) }}</span></div>
+  {% endif %}
+  {% if totals.service_charge > 0 %}
+  <div class="row"><span>Service Charge ({{ '%g'|format(totals.service_charge_rate) }}%)</span><span>{{ "%.2f"|format(totals.service_charge) }}</span></div>
+  {% endif %}
+  {% if totals.vat_amount > 0 %}
+  <div class="row"><span>Taxable Amount</span><span>{{ "%.2f"|format(totals.taxable_amount) }}</span></div>
+  <div class="row"><span>VAT ({{ '%g'|format(totals.vat_rate) }}%)</span><span>{{ "%.2f"|format(totals.vat_amount) }}</span></div>
+  {% endif %}
+  <div class="divider-solid"></div>
+  <div class="row total-row"><span>AMOUNT DUE (NPR)</span><span>{{ "%.2f"|format(totals.grand_total) }}</span></div>
+  <div class="divider"></div>
+  <div class="center" style="font-size:11px">We accept Cash · Card · FonePay · eSewa · Khalti</div>
+</div>
+<button class="btn" onclick="window.print()">🖨 Print Check</button>
+<script>
+  if (new URLSearchParams(window.location.search).get('autoprint') === '1') {
+    window.onload = () => setTimeout(() => window.print(), 200);
+  }
+</script>
+</body>
+</html>

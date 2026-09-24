@@ -4,8 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Revenue Reports — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
+  <script src="/static/vendor/chart-4.4.0.umd.js"></script>
   <style>
     body { background:#f3f4f6; }
     .tab-active   { background:#1d4ed8; color:#fff; }
@@ -26,14 +27,11 @@
 <body class="min-h-screen flex flex-col">
 
 <!-- ═══════════════════════════════ NAV ══════════════════════════════════════ -->
-<nav class="bg-gray-900 text-white px-6 py-3 flex items-center justify-between shadow shrink-0">
+<div id="pos-nav"></div>
+<div class="bg-white border-b px-4 py-2.5 flex items-center justify-between">
+  <h1 class="font-bold text-gray-800">📈 Reports</h1>
+  <span id="nav-user" class="hidden"></span>
   <div class="flex items-center gap-3">
-    <a href="/dashboard" class="text-gray-400 hover:text-white text-xl">🍽️</a>
-    <span class="text-gray-600">|</span>
-    <span class="font-bold text-lg">Revenue Reports</span>
-  </div>
-  <div class="flex items-center gap-3">
-    <span id="nav-user" class="text-sm text-gray-300 hidden sm:block"></span>
     <!-- Export dropdown -->
     <div class="relative">
       <button id="export-btn" onclick="toggleExport()"
@@ -64,12 +62,8 @@
         </a>
       </div>
     </div>
-    <button onclick="logout()"
-      class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm font-medium">
-      Logout
-    </button>
   </div>
-</nav>
+</div>
 
 <!-- ═══════════════════════════════ MAIN ══════════════════════════════════════ -->
 <main class="flex-1 p-5 max-w-7xl mx-auto w-full">
@@ -217,6 +211,7 @@
 <script>
   // ── Auth guard ──────────────────────────────────────────────────────────────
   const token = localStorage.getItem('token');
+  POS.nav('/reports');
   const me    = JSON.parse(localStorage.getItem('user') || '{}');
   if (!token) window.location.href = '/login';
   document.getElementById('nav-user').textContent = me.full_name || me.username || '';

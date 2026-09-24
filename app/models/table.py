@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database import Base
+from app.utils import nepal
 
 
 class RestaurantTable(Base):
@@ -17,4 +18,4 @@ class RestaurantTable(Base):
     floor         = Column(String, nullable=True)   # Ground / First / Rooftop
     pos_x         = Column(Integer, default=0)
     pos_y         = Column(Integer, default=0)
-    created_at    = Column(DateTime, server_default=func.now())
+    created_at    = Column(DateTime, default=nepal.now, server_default=func.now())

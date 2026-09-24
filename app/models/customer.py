@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database import Base
+from app.utils import nepal
 
 
 class Customer(Base):
@@ -17,5 +18,5 @@ class Customer(Base):
     total_visits   = Column(Integer, default=0)
     total_spent    = Column(Float, default=0.0)      # Lifetime spending in NPR
     loyalty_points = Column(Integer, default=0)
-    created_at     = Column(DateTime, server_default=func.now())
-    updated_at     = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at     = Column(DateTime, default=nepal.now, server_default=func.now())
+    updated_at     = Column(DateTime, default=nepal.now, server_default=func.now(), onupdate=nepal.now)

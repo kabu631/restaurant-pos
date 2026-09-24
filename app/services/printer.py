@@ -10,17 +10,23 @@ Wraps python-escpos so that:
 Printer path is read from:
   1. The per-restaurant AppSettings key "thermal_printer_path" (if set)
   2. The THERMAL_PRINTER_PATH env var / config.py fallback
-  3. Auto-detect: first USB printer found by python-escpos
 
 Supported path formats:
   - Windows COM port:  "COM3"
   - Linux USB device:  "/dev/usb/lp0"
   - Network (IP):      "192.168.1.100"   (uses port 9100)
+
+When no printer is configured the browser print pages (/receipt, /kot-print)
+are used instead.
 """
 import logging
-from typing import Optional
+import threading
+from datetime import datetime
+from typing import Callable
 
 _log = logging.getLogger(__name__)
+
+W = 42  # characters per line on an 80mm roll
 
 
 def _get_printer(path: str):
@@ -31,190 +37,149 @@ def _get_printer(path: str):
         raise RuntimeError("python-escpos is not installed")
 
     path = (path or "").strip()
-
     if not path:
-        # Try USB auto-detect
-        try:
-            p = ep.Usb(0, 0)   # placeholder — will be replaced by real detect
-            # python-escpos ≥ 3.x auto-detects first USB printer
-            p = ep.Usb()
-            return p
-        except Exception as exc:
-            raise RuntimeError(f"No USB printer found: {exc}")
+        raise RuntimeError("No thermal printer configured (Settings → Receipt & Print)")
 
     if path.upper().startswith("COM") or path.startswith("/dev/"):
         return ep.Serial(path, baudrate=9600)
 
-    # Assume IP address
-    return ep.Network(path, port=9100)
+    # Assume IP address, optionally with :port
+    host, _, port = path.partition(":")
+    return ep.Network(host, port=int(port or 9100))
 
 
-def _center(text: str, width: int = 42) -> str:
-    return text.center(width)
-
-
-def _divider(char: str = "-", width: int = 42) -> str:
+def _divider(char: str = "-", width: int = W) -> str:
     return char * width
 
 
-def print_receipt(bill: dict, restaurant: dict, printer_path: str = "") -> dict:
-    """Print a bill receipt to the thermal printer.
+def _money(value) -> str:
+    return f"{float(value or 0):,.2f}"
 
-    Args:
-        bill: dict from billing._bill_response()
-        restaurant: dict with name, address, phone, vat_number
-        printer_path: optional override; falls back to config/auto-detect
-    """
+
+def _run(job: Callable, path: str, label: str) -> dict:
     try:
-        from app.config import THERMAL_PRINTER_PATH
-        path = printer_path or THERMAL_PRINTER_PATH
         p = _get_printer(path)
     except Exception as exc:
-        _log.warning("Thermal printer unavailable: %s", exc)
+        _log.warning("Thermal printer unavailable for %s: %s", label, exc)
         return {"ok": False, "detail": str(exc)}
-
     try:
-        W = 42  # character width for 80mm roll
+        job(p)
+        p.cut()
+        return {"ok": True}
+    except Exception as exc:
+        _log.exception("%s print failed", label)
+        return {"ok": False, "detail": str(exc)}
+    finally:
+        try:
+            p.close()
+        except Exception:
+            pass
 
+
+def print_receipt(bill: dict, restaurant: dict, printer_path: str = "") -> dict:
+    """Print a bill receipt.  bill = billing._bill_response(); restaurant has
+    name, address, phone, vat_number and optionally receipt_footer."""
+    def job(p):
         p.set(align="center", bold=True, double_height=True, double_width=False)
         p.text(restaurant.get("name", "RESTAURANT") + "\n")
         p.set(align="center", bold=False, double_height=False)
-        if restaurant.get("address"):
-            p.text(restaurant["address"] + "\n")
-        if restaurant.get("phone"):
-            p.text("Tel: " + restaurant["phone"] + "\n")
-        if restaurant.get("vat_number"):
-            p.text("VAT: " + restaurant["vat_number"] + "\n")
-        p.text(_divider("=", W) + "\n")
+        for key, prefix in (("address", ""), ("phone", "Tel: "), ("vat_number", "PAN/VAT: ")):
+            if restaurant.get(key):
+                p.text(prefix + restaurant[key] + "\n")
+        p.text(("TAX INVOICE" if bill.get("vat_amount") else "INVOICE") + "\n")
+        if (bill.get("print_count") or 0) > 1:
+            p.text(f"COPY OF ORIGINAL - {bill['print_count'] - 1}\n")
+        p.text(_divider("=") + "\n")
 
         p.set(align="left")
         p.text(f"Bill No : {bill.get('bill_number', '')}\n")
-        p.text(f"Date    : {(bill.get('created_at') or '')[:19].replace('T', ' ')}\n")
+        p.text(f"Date    : {bill.get('date_display', '')}\n")
         if bill.get("table_number"):
             p.text(f"Table   : {bill['table_number']}\n")
-        if bill.get("order_type"):
-            p.text(f"Type    : {bill['order_type'].replace('_', ' ').title()}\n")
+        if bill.get("customer_name"):
+            p.text(f"Customer: {bill['customer_name']}\n")
+        if bill.get("customer_pan"):
+            p.text(f"PAN     : {bill['customer_pan']}\n")
         if bill.get("cashier_name"):
             p.text(f"Cashier : {bill['cashier_name']}\n")
-        p.text(_divider("-", W) + "\n")
+        p.text(_divider() + "\n")
 
-        # Header row
         p.set(bold=True)
-        p.text(f"{'Item':<22} {'Qty':>3} {'Price':>7} {'Total':>7}\n")
+        p.text(f"{'Item':<20} {'Qty':>4} {'Rate':>7} {'Amt':>8}\n")
         p.set(bold=False)
-        p.text(_divider("-", W) + "\n")
-
         for item in bill.get("items", []):
-            name  = item["name"][:22]
-            qty   = item["quantity"]
-            price = item["unit_price"]
-            total = item["line_total"]
-            p.text(f"{name:<22} {qty:>3} {price:>7.2f} {total:>7.2f}\n")
+            p.text(f"{item['name'][:20]:<20} {item['quantity']:>4} "
+                   f"{item['unit_price']:>7.2f} {item['line_total']:>8.2f}\n")
+        p.text(_divider() + "\n")
 
-        p.text(_divider("-", W) + "\n")
+        def row(label, value):
+            p.text(f"{label:<28}{value:>14}\n")
 
-        subtotal = bill.get("subtotal", 0)
-        discount = bill.get("discount_amount", 0)
-        taxable  = bill.get("taxable_amount", 0)
-        vat      = bill.get("vat_amount", 0)
-        svc      = bill.get("service_charge", 0)
-        grand    = bill.get("grand_total", 0)
-
-        p.text(f"{'Subtotal':<30} {subtotal:>10.2f}\n")
-        if discount:
-            p.text(f"{'Discount':<30} {-discount:>10.2f}\n")
-        if svc:
-            p.text(f"{'Service Charge (10%)':<30} {svc:>10.2f}\n")
-        p.text(f"{'VAT (13%)':<30} {vat:>10.2f}\n")
-        p.text(_divider("-", W) + "\n")
+        row("Subtotal", _money(bill.get("subtotal")))
+        if bill.get("discount_amount"):
+            row("Discount", "-" + _money(bill["discount_amount"]))
+        if bill.get("service_charge"):
+            row(f"Service Charge ({bill.get('service_charge_rate') or 10:g}%)",
+                _money(bill["service_charge"]))
+        if bill.get("vat_amount"):
+            row("Taxable Amount", _money(bill.get("taxable_amount")))
+            row(f"VAT ({bill.get('vat_rate') or 13:g}%)", _money(bill["vat_amount"]))
+        p.text(_divider() + "\n")
         p.set(bold=True)
-        p.text(f"{'TOTAL':<30} {grand:>10.2f}\n")
+        row("TOTAL (NPR)", _money(bill.get("grand_total")))
         p.set(bold=False)
-        p.text(f"{'Payment':<30} {bill.get('payment_method','').upper():>10}\n")
-        p.text(_divider("=", W) + "\n")
+        for pay in bill.get("payments", []):
+            row(pay.get("label") or pay["method"].upper(), _money(pay["amount"]))
+        if bill.get("change"):
+            row("Change", _money(bill["change"]))
+        p.text(_divider("=") + "\n")
 
-        footer = restaurant.get("receipt_footer", "Thank you for dining with us!")
         p.set(align="center")
-        p.text(footer + "\n")
-        p.text("IRD Certified Bill — Please keep this receipt\n")
-        p.text(_divider("=", W) + "\n")
-
-        p.cut()
-        p.close()
-        return {"ok": True}
-
-    except Exception as exc:
-        _log.exception("Receipt print failed")
-        try:
-            p.close()
-        except Exception:
-            pass
-        return {"ok": False, "detail": str(exc)}
+        p.text(restaurant.get("receipt_footer") or "Thank you for dining with us!")
+        p.text("\n")
+    return _run(job, printer_path, "Receipt")
 
 
-def print_kot(order_id: int, kot_number: int, items: list,
-              table_number: Optional[str], printer_path: str = "") -> dict:
-    """Print a Kitchen Order Ticket slip."""
-    try:
-        from app.config import THERMAL_PRINTER_PATH
-        path = printer_path or THERMAL_PRINTER_PATH
-        p = _get_printer(path)
-    except Exception as exc:
-        _log.warning("Thermal printer unavailable for KOT: %s", exc)
-        return {"ok": False, "detail": str(exc)}
-
-    try:
-        W = 42
+def print_kot(ticket: dict, printer_path: str = "") -> dict:
+    """Print a Kitchen Order Ticket.  ticket: kot_number, order_id, order_type,
+    table_number, waiter_name, station, items [{name, quantity, notes}]."""
+    def job(p):
+        station = (ticket.get("station") or "kitchen").upper()
         p.set(align="center", bold=True, double_height=True)
-        p.text("KITCHEN ORDER\n")
+        p.text(f"{'BOT' if station == 'BAR' else 'KOT'} #{ticket.get('kot_number') or '-'}\n")
+        where = (f"TABLE {ticket['table_number']}" if ticket.get("table_number")
+                 else (ticket.get("order_type") or "").replace("_", " ").upper())
+        p.text(where + "\n")
         p.set(bold=False, double_height=False)
-        p.text(_divider("=", W) + "\n")
+        p.text(_divider("=") + "\n")
         p.set(align="left")
-        p.text(f"Order  : #{order_id}\n")
-        p.text(f"KOT    : #{kot_number}\n")
-        if table_number:
-            p.text(f"Table  : {table_number}\n")
-        from datetime import datetime
-        p.text(f"Time   : {datetime.now().strftime('%H:%M:%S')}\n")
-        p.text(_divider("-", W) + "\n")
-        p.set(bold=True)
-        p.text(f"{'Item':<30} {'Qty':>5}\n")
-        p.set(bold=False)
-        p.text(_divider("-", W) + "\n")
-        for item in items:
-            name = item.get("name", "")[:30]
-            qty  = item.get("quantity", 1)
-            p.text(f"{name:<30} {qty:>5}\n")
+        p.text(f"Order  : #{ticket.get('order_id')}\n")
+        if ticket.get("waiter_name"):
+            p.text(f"Waiter : {ticket['waiter_name']}\n")
+        p.text(f"Time   : {ticket.get('time') or datetime.now().strftime('%H:%M')}\n")
+        p.text(_divider() + "\n")
+        for item in ticket.get("items", []):
+            p.set(bold=True, double_height=True)
+            p.text(f"{item.get('quantity', 1):>3} x {item.get('name', '')[:30]}\n")
+            p.set(bold=False, double_height=False)
             if item.get("notes"):
-                p.text(f"  ** {item['notes'][:38]} **\n")
-        p.text(_divider("=", W) + "\n")
-        p.cut()
-        p.close()
-        return {"ok": True}
+                p.text(f"      ** {item['notes'][:34]} **\n")
+        p.text(_divider("=") + "\n")
+    return _run(job, printer_path, "KOT")
 
-    except Exception as exc:
-        _log.exception("KOT print failed")
-        try:
-            p.close()
-        except Exception:
-            pass
-        return {"ok": False, "detail": str(exc)}
+
+def print_async(fn: Callable, *args) -> None:
+    """Fire-and-forget print so a slow or missing printer never blocks a request."""
+    threading.Thread(target=fn, args=args, name="thermal-print", daemon=True).start()
 
 
 def test_print(printer_path: str = "") -> dict:
     """Print a test page to verify the printer is working."""
-    try:
-        from app.config import THERMAL_PRINTER_PATH
-        path = printer_path or THERMAL_PRINTER_PATH
-        p = _get_printer(path)
+    def job(p):
         p.set(align="center", bold=True)
         p.text("=== PRINTER TEST ===\n")
         p.set(bold=False)
         p.text("Restaurant POS\n")
         p.text("Thermal printer is working!\n")
         p.text("===================\n")
-        p.cut()
-        p.close()
-        return {"ok": True}
-    except Exception as exc:
-        return {"ok": False, "detail": str(exc)}
+    return _run(job, printer_path, "Test")

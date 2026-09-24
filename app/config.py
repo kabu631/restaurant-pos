@@ -12,13 +12,14 @@ APP_VERSION = "1.0.0"
 
 # ── Database ──────────────────────────────────────────────────────────────────
 BASE_DIR     = str(_ROOT)
-DATA_DIR     = str(_ROOT / "data")
+DATA_DIR     = os.getenv("POS_DATA_DIR", str(_ROOT / "data"))
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://postgres:postgres@localhost:5432/restaurant_pos",
 )
 
 # ── Tax settings ──────────────────────────────────────────────────────────────
+# Defaults only — each restaurant can override these on the Settings page.
 VAT_RATE              = 13.0   # IRD-mandated 13% VAT
 SERVICE_CHARGE_RATE   = 10.0   # Optional 10% service charge
 SERVICE_CHARGE_ENABLED = True
@@ -51,3 +52,6 @@ CLOUD_SYNC_URL = os.getenv("CLOUD_SYNC_URL", "")
 
 # ── Backup ────────────────────────────────────────────────────────────────────
 BACKUP_KEEP_DAYS = int(os.getenv("BACKUP_KEEP_DAYS", "30"))
+BACKUP_ENABLED   = os.getenv("BACKUP_ENABLED", "true").lower() != "false"
+# Full path to pg_dump.exe if it is not on PATH (auto-detected in the usual install folders)
+PG_DUMP_PATH     = os.getenv("PG_DUMP_PATH", "")

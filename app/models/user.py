@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database import Base
+from app.utils import nepal
 
 
 class User(Base):
@@ -18,5 +19,5 @@ class User(Base):
     is_active     = Column(Boolean, default=True)
     pin           = Column(String, nullable=True)   # 4-digit quick login PIN
     last_login    = Column(DateTime, nullable=True)
-    created_at    = Column(DateTime, server_default=func.now())
-    updated_at    = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at    = Column(DateTime, default=nepal.now, server_default=func.now())
+    updated_at    = Column(DateTime, default=nepal.now, server_default=func.now(), onupdate=nepal.now)

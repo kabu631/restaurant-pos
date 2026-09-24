@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bookings — Restaurant POS</title>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<div id="pos-nav"></div>
+
+<main class="p-3 sm:p-5 max-w-4xl mx-auto space-y-4">
+  <!-- Day picker -->
+  <div class="bg-white rounded-2xl shadow-sm p-3 flex flex-wrap items-center gap-2">
+    <button onclick="shiftDay(-1)" class="w-10 h-10 rounded-lg border hover:bg-gray-50 text-lg" aria-label="Previous day">‹</button>
+    <button onclick="goDay(0)" id="btn-today" class="px-3 py-2 rounded-lg text-sm font-semibold">Today</button>
+    <button onclick="goDay(1)" id="btn-tomorrow" class="px-3 py-2 rounded-lg text-sm font-semibold">Tomorrow</button>
+    <input id="day" type="date" class="border rounded-lg px-3 py-2 text-sm">
+    <button onclick="shiftDay(1)" class="w-10 h-10 rounded-lg border hover:bg-gray-50 text-lg" aria-label="Next day">›</button>
+    <div class="flex-1"></div>
+    <span id="day-summary" class="text-sm text-gray-500"></span>
+    <button onclick="openForm()" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold">+ New booking</button>
+  </div>
+
+  <section>
+    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">Upcoming</h2>
+    <div id="upcoming" class="space-y-2"></div>
+  </section>
+  <section id="done-wrap" class="hidden">
+    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">Seated & closed</h2>
+    <div id="done" class="space-y-2"></div>
+  </section>
+</main>
+
+<script>
+const { api, esc, toast, fail } = POS;
+let day = POS.todayISO();
+let list = [];
+
+async function init() {
+  if (!POS.guard(['admin', 'cashier', 'waiter', 'superadmin'])) return;
+  POS.nav('/reservations');
+  const dayInput = document.getElementById('day');
+  dayInput.onchange = () => { if (dayInput.value) { day = dayInput.value; load(); } };
+  await load();
+  if (new URLSearchParams(location.search).get('new') === '1') openForm();
+  setInterval(() => { if (!document.hidden) load(); }, 30000);
+}
+
+function addDays(iso, n) {
+  const d = new Date(iso + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function goDay(offset) { day = POS.todayISO(offset); load(); }
+function shiftDay(n) { day = addDays(day, n); load(); }
+function fmt12(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+async function load() {
+  document.getElementById('day').value = day;
+  const today = POS.todayISO(), tomorrow = POS.todayISO(1);
+  [['btn-today', today], ['btn-tomorrow', tomorrow]].forEach(([id, d]) => {
+    document.getElementById(id).className = `px-3 py-2 rounded-lg text-sm font-semibold ${day === d ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`;
+  });
+  try { list = await api(`/api/reservations?date=${day}`); } catch (e) { fail(e); return; }
+  const upcoming = list.filter(r => r.status === 'booked');
+  const done = list.filter(r => r.status !== 'booked');
+  const guests = upcoming.reduce((s, r) => s + r.party_size, 0);
+  document.getElementById('day-summary').textContent = upcoming.length
+    ? `${upcoming.length} booking(s) · ${guests} guests` : '';
+  document.getElementById('upcoming').innerHTML = upcoming.length ? upcoming.map(row).join('')
+    : `<div class="bg-white rounded-2xl p-10 text-center text-gray-400">No bookings ${day === today ? 'today' : 'for this day'} yet.
+         <button onclick="openForm()" class="block mx-auto mt-2 text-blue-700 font-semibold">+ Add one</button></div>`;
+  document.getElementById('done-wrap').classList.toggle('hidden', !done.length);
+  document.getElementById('done').innerHTML = done.map(row).join('');
+}
+
+function row(r) {
+  const statusChip = {
+    seated: '<span class="text-xs font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Seated</span>',
+    cancelled: '<span class="text-xs font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Cancelled</span>',
+    no_show: '<span class="text-xs font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">No-show</span>',
+  }[r.status] || '';
+  const booked = r.status === 'booked';
+  return `<div class="bg-white rounded-2xl shadow-sm p-4 flex flex-wrap sm:flex-nowrap items-center gap-4 ${booked ? '' : 'opacity-70'}">
+    <div class="text-center w-24 shrink-0">
+      <div class="text-lg font-extrabold text-gray-900 whitespace-nowrap">${fmt12(r.time)}</div>
+      ${r.is_late ? '<div class="text-xs font-bold text-red-600">LATE</div>' : `<div class="text-xs text-gray-400">${r.duration_min} min</div>`}
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-bold text-gray-900">${esc(r.customer_name)}</span>
+        <span class="text-sm bg-gray-100 rounded-full px-2 py-0.5">👥 ${r.party_size}</span>
+        ${r.table_number ? `<span class="text-sm bg-blue-50 text-blue-800 rounded-full px-2 py-0.5">🪑 ${esc(r.table_number)}</span>`
+                         : (booked ? '<span class="text-sm bg-amber-50 text-amber-800 rounded-full px-2 py-0.5">No table yet</span>' : '')}
+        ${statusChip}
+      </div>
+      ${r.customer_phone ? `<a href="tel:${esc(r.customer_phone)}" class="text-sm text-blue-700">📞 ${esc(r.customer_phone)}</a>` : ''}
+      ${r.notes ? `<p class="text-sm text-amber-800 mt-0.5">📝 ${esc(r.notes)}</p>` : ''}
+    </div>
+    <div class="flex gap-2 shrink-0 w-full sm:w-auto">
+      ${booked ? `
+        <button onclick="seat(${r.id})" class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold">Seat</button>
+        <button onclick="openForm(${r.id})" class="px-3 py-2.5 rounded-xl border font-semibold hover:bg-gray-50">Edit</button>
+        <button onclick="more(${r.id})" class="px-3 py-2.5 rounded-xl border hover:bg-gray-50" aria-label="More">⋯</button>`
+      : r.status === 'seated' && r.order_id
+        ? `<a href="/orders?order_id=${r.order_id}" class="px-4 py-2.5 rounded-xl border font-semibold hover:bg-gray-50">Open order</a>`
+        : `<button onclick="setStatus(${r.id}, 'reopen')" class="px-4 py-2.5 rounded-xl border font-semibold hover:bg-gray-50">Reopen</button>`}
+    </div>
+  </div>`;
+}
+
+async function pickTable(r) {
+  let tables;
+  try { tables = await api(`/api/reservations/availability?date=${r.date}&time=${r.time}&party_size=${r.party_size}&duration_min=${r.duration_min}&exclude_id=${r.id}`); }
+  catch (e) { fail(e); return null; }
+  return POS.modal(`
+    <h2 class="text-lg font-bold mb-1">Which table?</h2>
+    <p class="text-sm text-gray-500 mb-3">${esc(r.customer_name)} · 👥 ${r.party_size}</p>
+    <div class="grid grid-cols-3 gap-2 max-h-[55vh] overflow-y-auto">${tableButtons(tables)}</div>
+    <button data-x class="w-full mt-4 py-3 rounded-xl border font-medium">Cancel</button>`, {
+    wide: true,
+    onMount: (w, close) => {
+      w.querySelectorAll('[data-t]').forEach(b => b.onclick = () => close(Number(b.dataset.t)));
+      w.querySelector('[data-x]').onclick = () => close(null);
+    },
+  });
+}
+
+async function seat(id) {
+  const r = list.find(x => x.id === id);
+  let tableId = r.table_id;
+  if (!tableId) {
+    tableId = await pickTable(r);
+    if (!tableId) return;
+  }
+  try {
+    const res = await api(`/api/reservations/${id}/seat`, { method: 'POST', body: { table_id: tableId } });
+    location.href = `/orders?order_id=${res.order.id}`;
+  } catch (e) { fail(e); }
+}
+
+async function more(id) {
+  const r = list.find(x => x.id === id);
+  const choice = await POS.modal(`
+    <h2 class="text-lg font-bold mb-3">${esc(r.customer_name)} · ${fmt12(r.time)}</h2>
+    <div class="grid gap-2">
+      <button data-c="no-show" class="py-3 rounded-xl border font-semibold hover:bg-gray-50">🚫 Mark no-show</button>
+      <button data-c="cancel" class="py-3 rounded-xl border border-red-200 text-red-600 font-semibold hover:bg-red-50">✕ Cancel booking</button>
+      <button data-c="" class="py-3 rounded-xl text-gray-500">Close</button>
+    </div>`, {
+    onMount: (w, close) => w.querySelectorAll('[data-c]').forEach(b => b.onclick = () => close(b.dataset.c)),
+  });
+  if (choice) setStatus(id, choice);
+}
+
+async function setStatus(id, action) {
+  try {
+    await api(`/api/reservations/${id}/${action}`, { method: 'POST' });
+    toast({ cancel: 'Booking cancelled', 'no-show': 'Marked as no-show', reopen: 'Booking reopened' }[action]);
+    load();
+  } catch (e) { fail(e); }
+}
+
+// ── New / edit booking ─────────────────────────────────────────────────────
+function tableButtons(tables, selected) {
+  return tables.map(t => {
+    const bad = !t.available || !t.fits;
+    const cls = t.id === selected ? 'border-blue-600 bg-blue-50'
+              : bad ? 'border-gray-200 bg-gray-50 text-gray-400' : 'border-green-300 bg-green-50 hover:shadow';
+    const note = !t.available ? esc(t.clash) : !t.fits ? 'Too small' : t.occupied_now ? 'Busy now' : `${t.capacity} seats`;
+    return `<button type="button" data-t="${t.id}" class="py-2.5 px-1 rounded-xl border-2 font-bold text-sm ${cls}">
+      ${esc(t.table_number)}<span class="block text-[11px] font-normal leading-tight">${note}</span></button>`;
+  }).join('');
+}
+
+function nextSlots(dateIso) {
+  // Half-hour slots from now (today) or from 12:00 (other days) — tap to fill the time
+  const now = new Date();
+  const npt = new Date(now.getTime() + (now.getTimezoneOffset() + 345) * 60000);
+  let mins = dateIso === POS.todayISO() ? Math.ceil((npt.getHours() * 60 + npt.getMinutes() + 15) / 30) * 30 : 12 * 60;
+  const out = [];
+  for (let i = 0; i < 8 && mins < 23 * 60; i++, mins += 30) {
+    out.push(`${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+async function openForm(id = null) {
+  const r = id ? list.find(x => x.id === id) : null;
+  const st = {
+    customer_name: r ? r.customer_name : '', customer_phone: r ? (r.customer_phone || '') : '',
+    party_size: r ? r.party_size : 2, date: r ? r.date : day, time: r ? r.time : '',
+    duration_min: r ? r.duration_min : 90, table_id: r ? r.table_id : null, notes: r ? (r.notes || '') : '',
+  };
+  if (!st.time) st.time = nextSlots(st.date)[0] || '19:00';
+
+  const saved = await POS.modal(`
+    <form class="space-y-3">
+      <h2 class="text-lg font-bold">${r ? 'Edit booking' : 'New booking'}</h2>
+      <div class="grid grid-cols-2 gap-2">
+        <input name="customer_phone" value="${esc(st.customer_phone)}" placeholder="Phone" inputmode="tel" class="border rounded-lg px-3 py-2.5">
+        <input name="customer_name" value="${esc(st.customer_name)}" placeholder="Guest name *" required class="border rounded-lg px-3 py-2.5">
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-700 mb-1">Guests</p>
+        <div class="flex flex-wrap gap-1.5" data-party>
+          ${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<button type="button" data-p="${n}" class="w-11 h-11 rounded-xl border-2 font-bold">${n}</button>`).join('')}
+          <input name="party_size" type="number" min="1" max="200" value="${st.party_size}" class="w-20 border rounded-xl px-2 text-center font-bold">
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <label class="text-sm font-medium text-gray-700">Date<input name="date" type="date" value="${st.date}" class="mt-1 w-full border rounded-lg px-2 py-2.5"></label>
+        <label class="text-sm font-medium text-gray-700">Time<input name="time" type="time" step="900" value="${st.time}" class="mt-1 w-full border rounded-lg px-2 py-2.5"></label>
+        <label class="text-sm font-medium text-gray-700">Stay
+          <select name="duration_min" class="mt-1 w-full border rounded-lg px-2 py-2.5">
+            ${[60, 90, 120, 180].map(m => `<option value="${m}" ${m === st.duration_min ? 'selected' : ''}>${m / 60 >= 1 ? (m / 60) + ' h' : m + ' min'}</option>`).join('')}
+          </select></label>
+      </div>
+      <div class="flex flex-wrap gap-1.5" data-slots></div>
+      <div>
+        <p class="text-sm font-medium text-gray-700 mb-1">Table <span class="text-gray-400 font-normal">(best fit first — optional)</span></p>
+        <div class="grid grid-cols-4 gap-1.5 max-h-44 overflow-y-auto" data-tables><p class="col-span-4 text-sm text-gray-400">Loading…</p></div>
+        <button type="button" data-none class="text-sm text-gray-600 underline mt-1">Decide the table later</button>
+      </div>
+      <textarea name="notes" rows="2" placeholder="Notes: birthday, high chair, window seat…" class="w-full border rounded-lg px-3 py-2.5">${esc(st.notes)}</textarea>
+      <p data-err class="hidden text-sm text-red-600"></p>
+      <div class="flex gap-2">
+        <button type="button" data-x class="flex-1 py-3 rounded-xl border font-medium">Cancel</button>
+        <button class="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold">${r ? 'Save' : 'Book table'}</button>
+      </div>
+    </form>`, {
+    wide: true,
+    onMount: (w, close) => {
+      const form = w.querySelector('form');
+      const err = w.querySelector('[data-err]');
+      const f = name => form.elements[name];
+
+      const paintParty = () => w.querySelectorAll('[data-p]').forEach(b => {
+        b.className = `w-11 h-11 rounded-xl border-2 font-bold ${Number(b.dataset.p) === Number(f('party_size').value) ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-200 hover:bg-gray-50'}`;
+      });
+      const paintSlots = () => {
+        w.querySelector('[data-slots]').innerHTML = nextSlots(f('date').value).map(s =>
+          `<button type="button" data-s="${s}" class="px-2.5 py-1.5 rounded-lg text-sm font-semibold ${s === f('time').value ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}">${fmt12(s)}</button>`).join('');
+        w.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { f('time').value = b.dataset.s; paintSlots(); refreshTables(); });
+      };
+      const refreshTables = POS.debounce(async () => {
+        const box = w.querySelector('[data-tables]');
+        if (!f('date').value || !f('time').value) return;
+        try {
+          const q = new URLSearchParams({ date: f('date').value, time: f('time').value,
+            party_size: f('party_size').value || 1, duration_min: f('duration_min').value });
+          if (r) q.set('exclude_id', r.id);
+          const tables = await api(`/api/reservations/availability?${q}`);
+          if (st.table_id && !tables.some(t => t.id === st.table_id)) st.table_id = null;
+          box.innerHTML = tables.length ? tableButtons(tables, st.table_id) : '<p class="col-span-4 text-sm text-gray-400">No tables set up yet.</p>';
+          box.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { st.table_id = Number(b.dataset.t); refreshTables(); });
+        } catch (e) { box.innerHTML = `<p class="col-span-4 text-sm text-red-600">${esc(e.message)}</p>`; }
+      }, 200);
+
+      w.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { f('party_size').value = b.dataset.p; paintParty(); refreshTables(); });
+      f('party_size').oninput = () => { paintParty(); refreshTables(); };
+      ['date', 'time', 'duration_min'].forEach(n => f(n).onchange = () => { paintSlots(); refreshTables(); });
+      w.querySelector('[data-none]').onclick = () => { st.table_id = null; refreshTables(); };
+      f('customer_phone').onchange = async () => {
+        const phone = f('customer_phone').value.trim();
+        if (phone.replace(/\D/g, '').length < 7 || f('customer_name').value.trim()) return;
+        try {
+          const c = await api(`/api/customers/lookup?phone=${encodeURIComponent(phone)}`);
+          if (c) { f('customer_name').value = c.name; toast(`Returning guest: ${c.name}`, { type: 'info' }); }
+        } catch { /* optional */ }
+      };
+      w.querySelector('[data-x]').onclick = () => close(null);
+      form.onsubmit = async e => {
+        e.preventDefault();
+        const body = {
+          customer_name: f('customer_name').value.trim(),
+          customer_phone: f('customer_phone').value.trim() || null,
+          party_size: Number(f('party_size').value),
+          date: f('date').value, time: f('time').value,
+          duration_min: Number(f('duration_min').value),
+          table_id: st.table_id,
+          notes: f('notes').value.trim() || null,
+        };
+        try {
+          await api(r ? `/api/reservations/${r.id}` : '/api/reservations', { method: r ? 'PUT' : 'POST', body });
+          close(body);
+        } catch (ex) { err.textContent = ex.message; err.classList.remove('hidden'); }
+      };
+      paintParty();
+      paintSlots();
+      refreshTables();
+      setTimeout(() => f(r ? 'customer_name' : 'customer_phone').focus(), 50);
+    },
+  });
+  if (saved) {
+    toast(r ? 'Booking updated' : `Booked ${saved.customer_name} · ${fmt12(saved.time)}`);
+    if (saved.date !== day) day = saved.date;
+    load();
+  }
+}
+
+init();
+</script>
+</body>
+</html>

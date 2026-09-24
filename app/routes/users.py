@@ -64,6 +64,14 @@ def _get_tenant_user(user_id: int, actor: User, db: Session) -> User:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+def _check_pin_free(db: Session, restaurant_id, pin: str, exclude_user_id: int = None):
+    """PIN login finds the user by PIN alone, so PINs must be unique per restaurant."""
+    q = db.query(User).filter(User.restaurant_id == restaurant_id, User.pin == pin)
+    if exclude_user_id:
+        q = q.filter(User.id != exclude_user_id)
+    if q.first():
+        raise HTTPException(status_code=409, detail="That PIN is already used by another staff member")
+
 def _audit(db: Session, actor: User, action: str, target_id: int, detail: dict = None):
     db.add(AuditTrail(
         restaurant_id=actor.restaurant_id,
@@ -106,6 +114,8 @@ def create_user(
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     if body.pin and (not body.pin.isdigit() or len(body.pin) != 4):
         raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+    if body.pin:
+        _check_pin_free(db, current_user.restaurant_id, body.pin)
 
     existing = db.query(User).filter(
         User.username == body.username,
@@ -145,6 +155,8 @@ def update_user(
         raise HTTPException(status_code=400, detail=f"Invalid role. Choose: {', '.join(sorted(STAFF_ROLES))}")
     if body.pin is not None and body.pin != "" and (not body.pin.isdigit() or len(body.pin) != 4):
         raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+    if body.pin:
+        _check_pin_free(db, user.restaurant_id, body.pin, exclude_user_id=user.id)
     if body.username and body.username != user.username:
         dup = db.query(User).filter(
             User.username == body.username,
@@ -207,6 +219,7 @@ def reset_pin(
     if not body.new_pin.isdigit() or len(body.new_pin) != 4:
         raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
     user = _get_tenant_user(user_id, current_user, db)
+    _check_pin_free(db, user.restaurant_id, body.new_pin, exclude_user_id=user.id)
     user.pin = body.new_pin
     _audit(db, current_user, "RESET_PIN", user.id)
     db.commit()

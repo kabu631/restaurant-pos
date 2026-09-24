@@ -4,354 +4,479 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settings – Restaurant POS</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-  .tab-active   { @apply border-b-2 border-blue-600 text-blue-600 font-semibold; }
-  .tab-inactive { @apply text-gray-500 hover:text-gray-800; }
-  .section-card { @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6; }
+<script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+<script src="/static/js/pos.js"></script>
+<style type="text/tailwindcss">
+  .section-card { @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 mb-5; }
   .form-label   { @apply block text-sm font-medium text-gray-700 mb-1; }
-  .form-input   { @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500; }
-  .btn-primary  { @apply bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition; }
-  .btn-secondary{ @apply bg-gray-100 text-gray-700 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition; }
-  .btn-green    { @apply bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition; }
-  .btn-red      { @apply bg-red-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition; }
-  .toast { position:fixed; bottom:24px; right:24px; z-index:9999; padding:12px 20px;
-           border-radius:8px; font-size:14px; font-weight:500; display:none;
-           box-shadow:0 4px 12px rgba(0,0,0,.15); }
-  .toast.ok  { background:#16a34a; color:#fff; }
-  .toast.err { background:#dc2626; color:#fff; }
+  .form-input   { @apply w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500; }
+  .btn-primary  { @apply bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition; }
+  .btn-secondary{ @apply bg-gray-100 text-gray-700 px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-200 transition; }
+  .btn-green    { @apply bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition; }
+  .hint         { @apply text-xs text-gray-500 mt-1; }
+  .toggle-row   { @apply flex items-center justify-between gap-4 py-3 border-b border-gray-100 last:border-0; }
 </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-100 min-h-screen">
 
-<!-- Nav -->
-<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-  <div class="flex items-center gap-3">
-    <a href="/dashboard" class="text-gray-500 hover:text-gray-800 text-sm">← Dashboard</a>
-    <span class="text-gray-300">|</span>
-    <h1 class="font-bold text-gray-800 text-lg">⚙️ Restaurant Settings</h1>
-  </div>
-  <div id="user-badge" class="text-sm text-gray-500"></div>
-</nav>
+<div id="pos-nav"></div>
 
-<div class="max-w-3xl mx-auto px-4 py-8">
+<div class="max-w-4xl mx-auto px-3 sm:px-4 py-5 sm:flex gap-5">
 
   <!-- Tabs -->
-  <div class="flex gap-6 border-b border-gray-200 mb-6 text-sm">
-    <button onclick="switchTab('profile')"  id="tab-profile"  class="pb-3 tab-active">🏪 Restaurant Profile</button>
-    <button onclick="switchTab('receipt')"  id="tab-receipt"  class="pb-3 tab-inactive">🧾 Receipt & Print</button>
-    <button onclick="switchTab('backup')"   id="tab-backup"   class="pb-3 tab-inactive">💾 Backup</button>
-    <button onclick="switchTab('security')" id="tab-security" class="pb-3 tab-inactive">🔐 Security</button>
-  </div>
+  <nav id="tabs" class="flex sm:flex-col gap-1 overflow-x-auto sm:w-52 shrink-0 mb-4 sm:mb-0"></nav>
 
-  <!-- ── Tab: Profile ── -->
-  <div id="pane-profile">
+  <div class="flex-1 min-w-0">
+
+  <!-- ── Restaurant ── -->
+  <div id="pane-profile" class="pane">
     <div class="section-card">
-      <h2 class="text-base font-semibold text-gray-800 mb-4">Restaurant Information</h2>
-      <p class="text-sm text-gray-500 mb-4">This information appears on printed receipts and VAT invoices.</p>
-      <div class="grid grid-cols-1 gap-4">
-        <div>
-          <label class="form-label">Restaurant Name *</label>
-          <input id="p-name" class="form-input" placeholder="Spice Garden Restaurant">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Restaurant information</h2>
+      <p class="text-sm text-gray-500 mb-4">Printed on every receipt and VAT invoice.</p>
+      <div class="grid gap-4">
+        <div><label class="form-label">Restaurant name *</label><input id="p-name" class="form-input" placeholder="Spice Garden Restaurant"></div>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div><label class="form-label">Phone</label><input id="p-phone" class="form-input" placeholder="01-4123456 / 9801234567"></div>
+          <div><label class="form-label">PAN / VAT number</label><input id="p-vat" class="form-input" placeholder="123456789"></div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="form-label">Phone Number</label>
-            <input id="p-phone" class="form-input" placeholder="01-4123456 / 9801234567">
-          </div>
-          <div>
-            <label class="form-label">VAT / PAN Number</label>
-            <input id="p-vat" class="form-input" placeholder="123456789">
-          </div>
-        </div>
-        <div>
-          <label class="form-label">Address</label>
-          <input id="p-address" class="form-input" placeholder="Thamel, Kathmandu, Nepal">
-        </div>
+        <div><label class="form-label">Address</label><input id="p-address" class="form-input" placeholder="Thamel, Kathmandu"></div>
+        <p class="text-sm text-gray-500">Restaurant code for logging in: <b id="p-slug" class="text-gray-800"></b></p>
       </div>
-      <div class="mt-5 flex gap-3">
-        <button class="btn-primary" onclick="saveProfile()">Save Profile</button>
-        <button class="btn-secondary" onclick="loadSettings()">Reset</button>
-      </div>
+      <div class="mt-5"><button class="btn-primary" onclick="saveProfile()">Save</button></div>
     </div>
   </div>
 
-  <!-- ── Tab: Receipt & Print ── -->
-  <div id="pane-receipt" class="hidden">
+  <!-- ── Tax & charges ── -->
+  <div id="pane-tax" class="pane hidden">
     <div class="section-card">
-      <h2 class="text-base font-semibold text-gray-800 mb-4">Receipt Customisation</h2>
-      <div class="grid grid-cols-1 gap-4">
-        <div>
-          <label class="form-label">Receipt Footer Message</label>
-          <input id="s-receipt_footer" class="form-input"
-                 placeholder="Thank you for dining with us!">
-          <p class="text-xs text-gray-400 mt-1">Printed at the bottom of every receipt.</p>
-        </div>
-        <div>
-          <label class="form-label">Receipt Note (above items)</label>
-          <input id="s-receipt_note" class="form-input"
-                 placeholder="Service charge and VAT applicable">
-          <p class="text-xs text-gray-400 mt-1">Optional note printed above the item list.</p>
-        </div>
+      <h2 class="text-base font-bold text-gray-800 mb-1">VAT & service charge</h2>
+      <p class="text-sm text-gray-500 mb-2">Service charge is added first, then VAT is charged on food + service charge (IRD practice).</p>
+      <div class="toggle-row">
+        <div><p class="font-medium">Charge VAT</p><p class="hint">Turn off if your restaurant is PAN-registered only (not VAT-registered).</p></div>
+        <input type="checkbox" id="s-vat_enabled" class="w-6 h-6 accent-blue-600" onchange="taxExample()">
       </div>
-      <div class="mt-5">
-        <button class="btn-primary" onclick="saveReceiptSettings()">Save Receipt Settings</button>
+      <div class="toggle-row">
+        <p class="font-medium">VAT rate (%)</p>
+        <input type="number" id="s-vat_rate" min="0" max="100" step="0.5" class="form-input !w-28 text-right" oninput="taxExample()">
+      </div>
+      <div class="toggle-row">
+        <div><p class="font-medium">Service charge</p><p class="hint">Cashiers can still switch it off for a single bill.</p></div>
+        <input type="checkbox" id="s-service_charge_enabled" class="w-6 h-6 accent-blue-600" onchange="taxExample()">
+      </div>
+      <div class="toggle-row">
+        <p class="font-medium">Service charge rate (%)</p>
+        <input type="number" id="s-service_charge_rate" min="0" max="100" step="0.5" class="form-input !w-28 text-right" oninput="taxExample()">
+      </div>
+      <div id="tax-example" class="mt-4 bg-gray-50 rounded-xl p-4 text-sm font-mono"></div>
+      <div class="mt-5"><button class="btn-primary" onclick="saveKeys(['vat_enabled','vat_rate','service_charge_enabled','service_charge_rate'], 'Tax settings saved')">Save</button></div>
+    </div>
+  </div>
+
+  <!-- ── Payments ── -->
+  <div id="pane-payments" class="pane hidden">
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Payment methods</h2>
+      <p class="text-sm text-gray-500 mb-3">Only ticked methods appear on the payment screen.</p>
+      <div id="pm-list" class="grid sm:grid-cols-3 gap-2"></div>
+      <div class="mt-5"><button class="btn-primary" onclick="saveMethods()">Save</button></div>
+    </div>
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Your merchant QR codes</h2>
+      <p class="text-sm text-gray-500 mb-4">Upload the QR from your FonePay / eSewa / Khalti / bank app (a screenshot or photo is fine).
+        It's shown full-size to the guest when the cashier picks that method — they scan, you check your phone, you tap Confirm.</p>
+      <div id="qr-list" class="grid sm:grid-cols-2 gap-4"></div>
+    </div>
+  </div>
+
+  <!-- ── Receipt & printing ── -->
+  <div id="pane-receipt" class="pane hidden">
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-4">Receipt text</h2>
+      <div class="grid gap-4">
+        <div><label class="form-label">Footer message</label><input id="s-receipt_footer" class="form-input" placeholder="Thank you for dining with us!"></div>
+        <div><label class="form-label">Note above items</label><input id="s-receipt_note" class="form-input" placeholder="Service charge and VAT applicable"></div>
+      </div>
+      <div class="mt-5 flex flex-wrap gap-3">
+        <button class="btn-primary" onclick="saveKeys(['receipt_footer','receipt_note'], 'Receipt text saved')">Save</button>
+        <button class="btn-secondary" onclick="openLastReceipt()">🧾 Preview last receipt</button>
       </div>
     </div>
-
     <div class="section-card">
-      <h2 class="text-base font-semibold text-gray-800 mb-1">Thermal Printer</h2>
-      <p class="text-sm text-gray-500 mb-4">
-        Configure a direct-connected thermal printer for one-click printing.
-        Leave blank to use browser print (Ctrl+P) instead.
-      </p>
-      <div>
-        <label class="form-label">Printer Path / COM Port</label>
-        <input id="s-thermal_printer_path" class="form-input"
-               placeholder="COM3  or  /dev/usb/lp0  or  192.168.1.100">
-        <p class="text-xs text-gray-400 mt-1">
-          Windows: COM3 · COM4, etc. &nbsp;|&nbsp; Linux: /dev/usb/lp0 &nbsp;|&nbsp; Network: IP address
-        </p>
-      </div>
-      <div class="flex gap-3 mt-4">
-        <button class="btn-primary" onclick="savePrinterSetting()">Save Printer Path</button>
-        <button class="btn-secondary" onclick="testPrint()">🖨 Test Print</button>
+      <h2 class="text-base font-bold text-gray-800 mb-1">Thermal printer (optional)</h2>
+      <p class="text-sm text-gray-500 mb-4">Leave blank to print from the browser — any printer set up in Windows works, including 80 mm receipt printers.
+        Fill it in only for a direct ESC/POS connection.</p>
+      <label class="form-label">Printer port or IP</label>
+      <input id="s-thermal_printer_path" class="form-input" placeholder="COM3   or   192.168.1.100">
+      <p class="hint">Serial/USB-serial: COM3, COM4 · Network printer: its IP address (port 9100)</p>
+      <div class="flex flex-wrap gap-3 mt-4">
+        <button class="btn-primary" onclick="saveKeys(['thermal_printer_path'], 'Printer saved')">Save</button>
+        <button class="btn-secondary" onclick="testPrint()">🖨 Test print</button>
       </div>
       <div id="printer-status" class="mt-3 text-sm hidden"></div>
     </div>
+  </div>
 
+  <!-- ── Kitchen & orders ── -->
+  <div id="pane-kitchen" class="pane hidden">
     <div class="section-card">
-      <h2 class="text-base font-semibold text-gray-800 mb-2">Receipt Preview</h2>
-      <p class="text-sm text-gray-500 mb-3">See how receipts will look for your customers.</p>
-      <a id="preview-link" href="/receipt/demo" target="_blank"
-         class="btn-secondary inline-block">🧾 Open Sample Receipt</a>
+      <h2 class="text-base font-bold text-gray-800 mb-2">Kitchen tickets (KOT)</h2>
+      <div class="toggle-row">
+        <div><p class="font-medium">Print every KOT automatically</p>
+          <p class="hint">Uses the thermal printer if set, otherwise opens the browser print dialog. Kitchen screens update either way.</p></div>
+        <input type="checkbox" id="s-auto_print_kot" class="w-6 h-6 accent-blue-600">
+      </div>
+      <p class="text-sm text-gray-500 mt-3">Which station prepares each category (Kitchen, Bar, or no ticket for bottled drinks) is set on the
+        <a href="/menu" class="text-blue-700 font-medium hover:underline">Menu page</a>.</p>
+    </div>
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Quick notes</h2>
+      <p class="text-sm text-gray-500 mb-3">One-tap kitchen notes on the order screen. One per line.</p>
+      <textarea id="quick-notes" rows="6" class="form-input font-mono"></textarea>
+    </div>
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Table bookings</h2>
+      <label class="form-label mt-2">Show a booked table as “reserved” this many minutes before the booking</label>
+      <input id="s-reservation_hold_minutes" type="number" min="0" max="1440" class="form-input !w-32">
+    </div>
+    <button class="btn-primary" onclick="saveKitchen()">Save kitchen & order settings</button>
+  </div>
+
+  <!-- ── Devices ── -->
+  <div id="pane-devices" class="pane hidden">
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Connect phones, tablets & the kitchen screen</h2>
+      <p class="text-sm text-gray-500 mb-4">Waiters can take orders on their phones and the kitchen can use any tablet or TV browser —
+        they just need to be on the same Wi-Fi as this computer.</p>
+      <div id="devices"></div>
     </div>
   </div>
 
-  <!-- ── Tab: Backup ── -->
-  <div id="pane-backup" class="hidden">
+  <!-- ── Backup ── -->
+  <div id="pane-backup" class="pane hidden">
     <div class="section-card">
-      <h2 class="text-base font-semibold text-gray-800 mb-1">Automatic Daily Backup</h2>
+      <h2 class="text-base font-bold text-gray-800 mb-1">Automatic daily backup</h2>
       <p class="text-sm text-gray-500 mb-4">
-        The system automatically backs up the database every night at midnight.
-        Backups are stored in the <code class="bg-gray-100 px-1 rounded">data/backups/</code> folder
-        and kept for 30 days.
+        A full copy of the database is saved every night and kept for 30 days in
+        <code class="bg-gray-100 px-1 rounded">data/backups/</code>. Copy that folder to a USB drive or Google Drive now and then.
       </p>
       <div id="backup-list" class="text-sm text-gray-600 mb-4">Loading backup list…</div>
-      <button class="btn-green" onclick="backupNow()">💾 Back Up Now</button>
+      <button class="btn-green" id="backup-btn" onclick="backupNow()">💾 Back up now</button>
     </div>
   </div>
 
-  <!-- ── Tab: Security ── -->
-  <div id="pane-security" class="hidden">
+  <!-- ── Security ── -->
+  <div id="pane-security" class="pane hidden">
     <div class="section-card">
-      <h2 class="text-base font-semibold text-gray-800 mb-4">Change Your Password</h2>
-      <div class="grid grid-cols-1 gap-4 max-w-sm">
-        <div>
-          <label class="form-label">Current Password</label>
-          <input id="sec-current" type="password" class="form-input">
-        </div>
-        <div>
-          <label class="form-label">New Password</label>
-          <input id="sec-new" type="password" class="form-input" placeholder="Min. 6 characters">
-        </div>
-        <div>
-          <label class="form-label">Confirm New Password</label>
-          <input id="sec-confirm" type="password" class="form-input">
-        </div>
+      <h2 class="text-base font-bold text-gray-800 mb-4">Change your password</h2>
+      <div class="grid gap-4 max-w-sm">
+        <div><label class="form-label">Current password</label><input id="sec-current" type="password" class="form-input"></div>
+        <div><label class="form-label">New password</label><input id="sec-new" type="password" class="form-input" placeholder="Min. 6 characters"></div>
+        <div><label class="form-label">Confirm new password</label><input id="sec-confirm" type="password" class="form-input"></div>
       </div>
-      <div class="mt-5">
-        <button class="btn-primary" onclick="changePassword()">Update Password</button>
-      </div>
+      <div class="mt-5"><button class="btn-primary" onclick="changePassword()">Update password</button></div>
     </div>
-
     <div class="section-card">
-      <h2 class="text-base font-semibold text-gray-800 mb-4">Quick-Login PIN</h2>
-      <p class="text-sm text-gray-500 mb-3">Set a 4-digit PIN for fast login on shared devices.</p>
+      <h2 class="text-base font-bold text-gray-800 mb-1">Your quick-login PIN</h2>
+      <p class="text-sm text-gray-500 mb-3">4 digits for fast sign-in on shared tills. Each staff member needs a different PIN.</p>
       <div class="flex items-end gap-3">
         <div class="w-32">
           <label class="form-label">New PIN</label>
-          <input id="sec-pin" type="password" maxlength="4" inputmode="numeric"
-                 class="form-input text-center text-xl tracking-widest" placeholder="••••">
+          <input id="sec-pin" type="password" maxlength="4" inputmode="numeric" class="form-input text-center text-xl tracking-widest" placeholder="••••">
         </div>
-        <button class="btn-primary mb-[1px]" onclick="setPin()">Set PIN</button>
+        <button class="btn-primary" onclick="setPin()">Set PIN</button>
       </div>
     </div>
   </div>
 
+  </div>
 </div>
 
-<!-- Toast -->
-<div id="toast" class="toast"></div>
-
 <script>
-const token = () => localStorage.getItem('token') || sessionStorage.getItem('token');
-const h = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${token()}` });
+const { api, esc, toast, fail } = POS;
+const TABS = [
+  ['profile', '🏪 Restaurant'], ['tax', '💰 Tax & charges'], ['payments', '💳 Payments'],
+  ['receipt', '🧾 Receipt & printing'], ['kitchen', '👨‍🍳 Kitchen & orders'], ['devices', '📱 Devices'],
+  ['backup', '💾 Backup'], ['security', '🔐 Security'],
+];
+let DATA = null;
 
-// ── Auth guard ────────────────────────────────────────────────────────────────
 async function init() {
-  const r = await fetch('/api/auth/me', { headers: h() });
-  if (!r.ok) { location.href = '/login'; return; }
-  const u = await r.json();
-  if (!['admin','superadmin'].includes(u.role)) { location.href = '/dashboard'; return; }
-  document.getElementById('user-badge').textContent = `${u.full_name} (${u.role})`;
-  loadSettings();
-  loadBackupList();
+  if (!POS.guard(['admin', 'superadmin'])) return;
+  POS.nav('/settings');
+  document.getElementById('tabs').innerHTML = TABS.map(([k, label]) =>
+    `<button data-tab="${k}" onclick="switchTab('${k}')" class="text-left px-3 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap">${label}</button>`).join('');
+  const start = location.hash.slice(1);
+  switchTab(TABS.some(t => t[0] === start) ? start : 'profile');
+  window.addEventListener('hashchange', () => {
+    const t = location.hash.slice(1);
+    if (TABS.some(x => x[0] === t)) switchTab(t);
+  });
+  await loadSettings();
 }
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
-const TABS = ['profile','receipt','backup','security'];
 function switchTab(t) {
-  TABS.forEach(tab => {
-    document.getElementById(`tab-${tab}`).className = 'pb-3 ' +
-      (tab === t ? 'tab-active border-b-2 border-blue-600 text-blue-600 font-semibold'
-                 : 'tab-inactive text-gray-500 hover:text-gray-800');
-    document.getElementById(`pane-${tab}`).classList.toggle('hidden', tab !== t);
+  document.querySelectorAll('[data-tab]').forEach(b => {
+    b.className = `text-left px-3 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap ${b.dataset.tab === t ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-white'}`;
   });
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('hidden', p.id !== `pane-${t}`));
+  history.replaceState(null, '', `#${t}`);
   if (t === 'backup') loadBackupList();
+  if (t === 'devices') loadDevices();
 }
 
-// ── Load settings ─────────────────────────────────────────────────────────────
 async function loadSettings() {
-  const r = await fetch('/api/settings', { headers: h() });
-  if (!r.ok) { showToast('Failed to load settings', false); return; }
-  const d = await r.json();
-  document.getElementById('p-name').value    = d.name    || '';
-  document.getElementById('p-phone').value   = d.phone   || '';
-  document.getElementById('p-vat').value     = d.vat_number || '';
-  document.getElementById('p-address').value = d.address || '';
-  const s = d.settings || {};
-  ['receipt_footer','receipt_note','thermal_printer_path'].forEach(k => {
-    const el = document.getElementById(`s-${k}`);
-    if (el) el.value = s[k] || '';
-  });
+  try { DATA = await api('/api/settings'); } catch (e) { fail(e); return; }
+  const s = DATA.settings;
+  document.getElementById('p-name').value = DATA.name || '';
+  document.getElementById('p-phone').value = DATA.phone || '';
+  document.getElementById('p-vat').value = DATA.vat_number || '';
+  document.getElementById('p-address').value = DATA.address || '';
+  document.getElementById('p-slug').textContent = DATA.slug;
+  for (const [key, value] of Object.entries(s)) {
+    const el = document.getElementById(`s-${key}`);
+    if (!el) continue;
+    if (el.type === 'checkbox') el.checked = value === 'true';
+    else el.value = value;
+  }
+  document.getElementById('quick-notes').value = (s.quick_notes || '').split(',').map(x => x.trim()).filter(Boolean).join('\n');
+  taxExample();
+  renderPayments();
 }
 
-// ── Save profile ──────────────────────────────────────────────────────────────
-async function saveProfile() {
-  const body = {
-    profile: {
-      name:       document.getElementById('p-name').value.trim(),
-      phone:      document.getElementById('p-phone').value.trim(),
-      vat_number: document.getElementById('p-vat').value.trim(),
-      address:    document.getElementById('p-address').value.trim(),
-    }
+function readKey(key) {
+  const el = document.getElementById(`s-${key}`);
+  return el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value.trim();
+}
+
+async function saveBulk(body, okMessage) {
+  try {
+    DATA = await api('/api/settings/bulk', { method: 'PUT', body });
+    toast(okMessage);
+    return true;
+  } catch (e) { fail(e); return false; }
+}
+
+function saveKeys(keys, okMessage) {
+  const settings = {};
+  keys.forEach(k => settings[k] = readKey(k));
+  return saveBulk({ settings }, okMessage);
+}
+
+function saveProfile() {
+  const profile = {
+    name: document.getElementById('p-name').value.trim(),
+    phone: document.getElementById('p-phone').value.trim(),
+    vat_number: document.getElementById('p-vat').value.trim(),
+    address: document.getElementById('p-address').value.trim(),
   };
-  if (!body.profile.name) { showToast('Restaurant name is required', false); return; }
-  const r = await fetch('/api/settings/bulk', {
-    method:'PUT', headers: h(), body: JSON.stringify(body)
-  });
-  showToast(r.ok ? 'Profile saved ✓' : 'Save failed', r.ok);
+  if (!profile.name) { toast('Restaurant name is required', { type: 'error' }); return; }
+  saveBulk({ profile }, 'Restaurant details saved');
 }
 
-// ── Save receipt settings ─────────────────────────────────────────────────────
-async function saveReceiptSettings() {
-  const body = { settings: {
-    receipt_footer: document.getElementById('s-receipt_footer').value.trim(),
-    receipt_note:   document.getElementById('s-receipt_note').value.trim(),
-  }};
-  const r = await fetch('/api/settings/bulk', {
-    method:'PUT', headers: h(), body: JSON.stringify(body)
-  });
-  showToast(r.ok ? 'Receipt settings saved ✓' : 'Save failed', r.ok);
+function taxExample() {
+  const vatOn = document.getElementById('s-vat_enabled').checked;
+  const scOn = document.getElementById('s-service_charge_enabled').checked;
+  const vr = Number(document.getElementById('s-vat_rate').value) || 0;
+  const sr = Number(document.getElementById('s-service_charge_rate').value) || 0;
+  const food = 1000, sc = scOn ? food * sr / 100 : 0, vat = vatOn ? (food + sc) * vr / 100 : 0;
+  const line = (a, b) => `<div class="flex justify-between"><span>${a}</span><span>${POS.num(b)}</span></div>`;
+  document.getElementById('tax-example').innerHTML =
+    '<p class="text-xs font-sans font-semibold text-gray-500 mb-2 uppercase">Example bill</p>' +
+    line('Food', food) + (scOn ? line(`Service charge ${sr}%`, sc) : '') +
+    (vatOn ? line('Taxable amount', food + sc) + line(`VAT ${vr}%`, vat) : '') +
+    `<div class="flex justify-between font-bold border-t mt-1 pt-1"><span>Guest pays</span><span>${POS.num(food + sc + vat)}</span></div>`;
 }
 
-// ── Save printer path ─────────────────────────────────────────────────────────
-async function savePrinterSetting() {
-  const body = { settings: {
-    thermal_printer_path: document.getElementById('s-thermal_printer_path').value.trim()
-  }};
-  const r = await fetch('/api/settings/bulk', {
-    method:'PUT', headers: h(), body: JSON.stringify(body)
-  });
-  showToast(r.ok ? 'Printer path saved ✓' : 'Save failed', r.ok);
+// ── Payments ────────────────────────────────────────────────────────────────
+const QR_LABELS = { qr: 'FonePay', esewa: 'eSewa', khalti: 'Khalti', bank: 'Bank / mobile banking' };
+
+function renderPayments() {
+  const enabled = (DATA.settings.payment_methods || '').split(',');
+  document.getElementById('pm-list').innerHTML = Object.entries(DATA.payment_method_labels).map(([k, label]) => `
+    <label class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-50">
+      <input type="checkbox" data-pm="${k}" class="w-5 h-5 accent-blue-600" ${enabled.includes(k) ? 'checked' : ''}>
+      <span class="font-medium">${esc(label)}</span></label>`).join('');
+  document.getElementById('qr-list').innerHTML = Object.entries(QR_LABELS).map(([k, label]) => {
+    const img = DATA.payment_qr[k];
+    return `<div class="border rounded-xl p-4 flex gap-4 items-center">
+      <div class="w-28 h-28 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+        ${img ? `<img src="${esc(img)}" class="w-full h-full object-contain" alt="${esc(label)} QR">` : '<span class="text-3xl text-gray-300">▦</span>'}
+      </div>
+      <div class="space-y-2">
+        <p class="font-semibold">${esc(label)}</p>
+        <label class="btn-secondary !px-3 !py-2 inline-block cursor-pointer">${img ? 'Replace' : 'Upload QR'}
+          <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="uploadQr('${k}', this)"></label>
+        ${img ? `<button onclick="removeQr('${k}')" class="block text-sm text-red-600 hover:underline">Remove</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
-// ── Test print ────────────────────────────────────────────────────────────────
+function saveMethods() {
+  const keys = [...document.querySelectorAll('[data-pm]')].filter(c => c.checked).map(c => c.dataset.pm);
+  if (!keys.length) { toast('Keep at least one payment method on', { type: 'error' }); return; }
+  saveBulk({ settings: { payment_methods: keys.join(',') } }, 'Payment methods saved');
+}
+
+/** Shrink big phone screenshots so they load instantly on the payment screen. */
+function imageToDataUrl(file, maxSide = 900) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('That file is not an image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadQr(method, input) {
+  const file = input.files[0];
+  if (!file) return;
+  try {
+    const image = await imageToDataUrl(file);
+    await api(`/api/settings/payment-qr/${method}`, { method: 'PUT', body: { image } });
+    DATA.payment_qr[method] = image;
+    renderPayments();
+    toast(`${QR_LABELS[method]} QR saved — it now shows on the payment screen`);
+  } catch (e) { fail(e); }
+}
+
+async function removeQr(method) {
+  if (!(await POS.confirm(`Remove the ${QR_LABELS[method]} QR?`, { okText: 'Remove', danger: true }))) return;
+  try {
+    await api(`/api/settings/payment-qr/${method}`, { method: 'PUT', body: { image: null } });
+    DATA.payment_qr[method] = null;
+    renderPayments();
+  } catch (e) { fail(e); }
+}
+
+// ── Receipt & printer ───────────────────────────────────────────────────────
+async function openLastReceipt() {
+  try {
+    const bills = await api('/api/billing/bills?limit=1');
+    if (!bills.length) { toast('No bills yet — take a payment first', { type: 'info' }); return; }
+    window.open(`/receipt/${bills[0].id}`, '_blank');
+  } catch (e) { fail(e); }
+}
+
 async function testPrint() {
-  const path = document.getElementById('s-thermal_printer_path').value.trim();
   const el = document.getElementById('printer-status');
-  el.className = 'mt-3 text-sm text-yellow-600';
+  el.className = 'mt-3 text-sm text-amber-600';
   el.textContent = 'Sending test print…';
-  el.classList.remove('hidden');
-  const r = await fetch('/api/billing/test-print', {
-    method:'POST', headers: h(),
-    body: JSON.stringify({ printer_path: path })
-  });
-  const d = await r.json();
-  el.textContent = d.ok ? '✓ Test page sent to printer!' : `✗ ${d.detail}`;
-  el.className   = `mt-3 text-sm ${d.ok ? 'text-green-600' : 'text-red-600'}`;
+  try {
+    const d = await api('/api/billing/test-print', { method: 'POST', body: { printer_path: readKey('thermal_printer_path') } });
+    el.textContent = d.ok ? '✓ Test page sent to the printer' : `✗ ${d.detail}`;
+    el.className = `mt-3 text-sm ${d.ok ? 'text-green-600' : 'text-red-600'}`;
+  } catch (e) { el.textContent = `✗ ${e.message}`; el.className = 'mt-3 text-sm text-red-600'; }
 }
 
-// ── Backup list ───────────────────────────────────────────────────────────────
-async function loadBackupList() {
-  const r = await fetch('/api/backup/list', { headers: h() });
-  const el = document.getElementById('backup-list');
-  if (!r.ok) { el.textContent = 'Could not load backup list.'; return; }
-  const files = await r.json();
-  if (!files.length) {
-    el.textContent = 'No backups yet.';
+// ── Kitchen & orders ────────────────────────────────────────────────────────
+function saveKitchen() {
+  const notes = document.getElementById('quick-notes').value.split(/[\n,]/).map(x => x.trim()).filter(Boolean).join(',');
+  saveBulk({ settings: {
+    auto_print_kot: readKey('auto_print_kot'),
+    reservation_hold_minutes: readKey('reservation_hold_minutes') || '60',
+    quick_notes: notes,
+  }}, 'Kitchen & order settings saved');
+}
+
+// ── Devices ─────────────────────────────────────────────────────────────────
+async function loadDevices() {
+  const box = document.getElementById('devices');
+  let n;
+  try { n = await api('/api/settings/network'); } catch (e) { box.textContent = e.message; return; }
+  if (!n.lan_enabled) {
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 space-y-2">
+      <p class="font-semibold">Other devices can't connect yet — the POS only listens on this computer.</p>
+      <ol class="list-decimal ml-5 space-y-1">
+        <li>Open the <code>.env</code> file in the restaurant-pos folder and change <code>HOST=127.0.0.1</code> to <code>HOST=0.0.0.0</code></li>
+        <li>Restart the POS (close the window and double-click <b>Restaurant POS</b> again)</li>
+        <li>If Windows asks, click <b>Allow access</b> for private networks</li>
+        <li>Come back to this tab — a QR code to scan will appear here</li>
+      </ol></div>`;
     return;
   }
-  el.innerHTML = `<div class="font-medium text-gray-700 mb-2">Recent backups (${files.length}):</div>` +
-    files.slice(0,10).map(f =>
-      `<div class="flex justify-between text-xs text-gray-600 py-1 border-b border-gray-100">
-         <span>📦 ${f.name}</span><span>${f.size_kb} KB</span>
-       </div>`
-    ).join('');
+  if (!n.urls.length) {
+    box.innerHTML = '<p class="text-sm text-gray-600">Connected to no network — join the restaurant Wi-Fi first.</p>';
+    return;
+  }
+  const code = encodeURIComponent(DATA ? DATA.slug : '');
+  // The first address is the one this PC uses on the network; the rest are usually virtual adapters
+  const [main, ...others] = n.urls;
+  const link = `${main}/login?restaurant=${code}`;
+  box.innerHTML = `<div class="flex flex-col sm:flex-row gap-4 items-center border rounded-xl p-4">
+      <img src="/api/qr.png?data=${encodeURIComponent(link)}" class="w-40 h-40" alt="QR code to open the POS">
+      <div class="text-sm space-y-2">
+        <p class="font-semibold text-gray-800">Scan with a phone camera, or type:</p>
+        <p class="font-mono text-lg text-blue-700 break-all">${esc(main)}</p>
+        <p class="text-gray-500">Staff then log in with their PIN. For the kitchen screen, log in as a kitchen user — it opens the Kitchen Display.</p>
+      </div></div>
+    ${others.length ? `<p class="text-xs text-gray-500 mt-3">Not opening? This computer also answers on:
+      ${others.map(u => `<span class="font-mono">${esc(u)}</span>`).join(' · ')}</p>` : ''}`;
+}
+
+// ── Backup ──────────────────────────────────────────────────────────────────
+async function loadBackupList() {
+  const el = document.getElementById('backup-list');
+  let files;
+  try { files = await api('/api/backup/list'); } catch (e) { el.textContent = 'Could not load backup list.'; return; }
+  el.innerHTML = files.length
+    ? `<div class="font-medium text-gray-700 mb-2">Recent backups (${files.length}):</div>` + files.slice(0, 10).map(f =>
+        `<div class="flex justify-between text-xs text-gray-600 py-1.5 border-b border-gray-100">
+           <span>📦 ${esc(f.name)}</span><span>${f.size_kb} KB</span></div>`).join('')
+    : 'No backups yet.';
 }
 
 async function backupNow() {
-  const r = await fetch('/api/backup/now', { method:'POST', headers: h() });
-  const d = await r.json();
-  showToast(d.ok ? `Backup created: ${d.file} (${d.size_kb} KB)` : d.detail, d.ok);
-  if (d.ok) loadBackupList();
+  const btn = document.getElementById('backup-btn');
+  btn.disabled = true;
+  btn.textContent = 'Backing up…';
+  try {
+    const d = await api('/api/backup/now', { method: 'POST' });
+    if (d.ok) { toast(`Backup created: ${d.file} (${d.size_kb} KB)`); loadBackupList(); }
+    else toast(d.detail, { type: 'error' });
+  } catch (e) { fail(e); }
+  btn.disabled = false;
+  btn.textContent = '💾 Back up now';
 }
 
-// ── Security: change password ─────────────────────────────────────────────────
+// ── Security ────────────────────────────────────────────────────────────────
 async function changePassword() {
-  const cur  = document.getElementById('sec-current').value;
-  const nw   = document.getElementById('sec-new').value;
+  const cur = document.getElementById('sec-current').value;
+  const nw = document.getElementById('sec-new').value;
   const conf = document.getElementById('sec-confirm').value;
-  if (!cur || !nw)  { showToast('Fill in all fields', false); return; }
-  if (nw !== conf)  { showToast('Passwords do not match', false); return; }
-  if (nw.length < 6){ showToast('Password must be at least 6 characters', false); return; }
-  const r = await fetch('/api/auth/change-password', {
-    method:'POST', headers: h(),
-    body: JSON.stringify({ current_password: cur, new_password: nw })
-  });
-  const d = await r.json();
-  if (r.ok) {
-    showToast('Password changed ✓', true);
-    ['sec-current','sec-new','sec-confirm'].forEach(id => document.getElementById(id).value='');
-  } else {
-    showToast(d.detail || 'Failed to change password', false);
-  }
+  if (!cur || !nw) { toast('Fill in all fields', { type: 'error' }); return; }
+  if (nw !== conf) { toast('Passwords do not match', { type: 'error' }); return; }
+  if (nw.length < 6) { toast('Password must be at least 6 characters', { type: 'error' }); return; }
+  try {
+    await api('/api/auth/change-password', { method: 'POST', body: { current_password: cur, new_password: nw } });
+    toast('Password changed');
+    ['sec-current', 'sec-new', 'sec-confirm'].forEach(id => document.getElementById(id).value = '');
+  } catch (e) { fail(e); }
 }
 
-// ── Security: set PIN ─────────────────────────────────────────────────────────
 async function setPin() {
-  const meR = await fetch('/api/auth/me', { headers: h() });
-  const me  = await meR.json();
   const pin = document.getElementById('sec-pin').value;
-  if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-    showToast('PIN must be exactly 4 digits', false); return;
-  }
-  const r = await fetch(`/api/users/${me.id}/reset-pin`, {
-    method:'PATCH', headers: h(), body: JSON.stringify({ new_pin: pin })
-  });
-  showToast(r.ok ? 'PIN updated ✓' : 'Failed to set PIN', r.ok);
-  if (r.ok) document.getElementById('sec-pin').value = '';
-}
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-function showToast(msg, ok=true) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className   = `toast ${ok ? 'ok' : 'err'}`;
-  t.style.display = 'block';
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => { t.style.display='none'; }, 3500);
+  if (!/^\d{4}$/.test(pin)) { toast('PIN must be exactly 4 digits', { type: 'error' }); return; }
+  try {
+    await api(`/api/users/${POS.user().id}/reset-pin`, { method: 'PATCH', body: { new_pin: pin } });
+    toast('PIN updated');
+    document.getElementById('sec-pin').value = '';
+  } catch (e) { fail(e); }
 }
 
 init();

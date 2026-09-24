@@ -4,711 +4,235 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Billing — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <style>
-    @media print {
-      body > *:not(#print-area) { display: none !important; }
-      #print-area { display: block !important; font-family: monospace; font-size: 12px; }
-    }
-    @keyframes fadeInScale {
-      from { opacity: 0; transform: scale(0.85); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-    .animate-pop { animation: fadeInScale 0.35s ease-out forwards; }
-  </style>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
+  <script src="/static/js/payment.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-<!-- Print area (hidden until print) -->
-<div id="print-area" style="display:none"></div>
+<div id="pos-nav"></div>
 
-<!-- Top nav -->
-<nav class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between shadow shrink-0">
-  <div class="flex items-center gap-3">
-    <a href="/dashboard" class="text-gray-400 hover:text-white text-sm font-medium">🍽️</a>
-    <span class="text-gray-600">|</span>
-    <span class="font-bold">Billing</span>
-    <span class="hidden md:flex items-center gap-1">
-      <a href="/orders" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Orders</a>
-      <a href="/tables" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Floor Plan</a>
-      <a href="/kitchen" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Kitchen</a>
-      <a href="/inventory" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors">Inventory</a>
-    </span>
-  </div>
-  <div class="flex items-center gap-3">
-    <span id="nav-user" class="text-sm text-gray-300 hidden sm:block"></span>
-    <a href="/orders" class="text-sm bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded font-medium">
-      + New Order
-    </a>
-  </div>
-</nav>
+<main class="p-3 sm:p-5 max-w-7xl mx-auto space-y-4">
 
-<!-- Tabs -->
-<div class="bg-white border-b px-6 flex gap-0 shadow-sm">
-  <button onclick="setTab('generate')" data-tab="generate"
-    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600">
-    Generate Bill
-  </button>
-  <button onclick="setTab('history')" data-tab="history"
-    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-800">
-    Bill History
-  </button>
-</div>
+  <!-- Today at a glance -->
+  <section id="summary" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></section>
 
-<div class="p-6 max-w-5xl mx-auto">
-
-  <!-- ===== TAB: GENERATE BILL ===== -->
-  <div id="tab-generate">
-
-    <!-- Select order -->
-    <div class="bg-white rounded-xl shadow p-5 mb-4">
-      <h2 class="font-semibold text-gray-700 mb-3">Select Active Order</h2>
-      <div class="flex gap-3">
-        <select id="order-select"
-          class="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">— choose order —</option>
-        </select>
-        <button onclick="loadOrderPreview()"
-          class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-          Preview
-        </button>
-      </div>
-    </div>
-
-    <!-- Bill preview -->
-    <div id="bill-preview" class="hidden">
-
-      <!-- Items table -->
-      <div class="bg-white rounded-xl shadow p-5 mb-4">
-        <h2 class="font-semibold text-gray-700 mb-3" id="preview-order-label">Order Items</h2>
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b text-gray-500 text-left">
-              <th class="pb-2">Item</th>
-              <th class="pb-2 text-center">Qty</th>
-              <th class="pb-2 text-right">Rate</th>
-              <th class="pb-2 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody id="preview-items"></tbody>
-        </table>
-      </div>
-
-      <!-- Billing options -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-
-        <!-- Discount + customer -->
-        <div class="bg-white rounded-xl shadow p-5 space-y-3">
-          <h2 class="font-semibold text-gray-700">Billing Options</h2>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">Discount Type</label>
-            <select id="disc-type" onchange="recalcPreview()"
-              class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-              <option value="">No discount</option>
-              <option value="percentage">Percentage (%)</option>
-              <option value="flat">Flat amount (NPR)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">Discount Value</label>
-            <input id="disc-value" type="number" min="0" value="0" oninput="recalcPreview()"
-              class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-          <div class="flex items-center gap-2">
-            <input id="incl-service" type="checkbox" checked onchange="recalcPreview()"
-              class="accent-blue-600" />
-            <label class="text-sm text-gray-600">Include service charge (10%)</label>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">Customer Name</label>
-            <input id="cust-name" type="text" placeholder="Optional"
-              class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">Customer PAN (for VAT bill)</label>
-            <input id="cust-pan" type="text" placeholder="9-digit PAN (optional)"
-              class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-        </div>
-
-        <!-- Totals preview -->
-        <div class="bg-white rounded-xl shadow p-5">
-          <h2 class="font-semibold text-gray-700 mb-3">Amount Summary</h2>
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between text-gray-600">
-              <span>Subtotal</span><span id="s-subtotal">—</span>
-            </div>
-            <div class="flex justify-between text-gray-500" id="disc-row">
-              <span id="s-disc-label">Discount</span><span id="s-disc">—</span>
-            </div>
-            <div class="flex justify-between text-gray-600">
-              <span>Taxable Amount</span><span id="s-taxable">—</span>
-            </div>
-            <div class="flex justify-between text-gray-600">
-              <span>VAT (13%)</span><span id="s-vat">—</span>
-            </div>
-            <div class="flex justify-between text-gray-600" id="svc-row">
-              <span>Service Charge (10%)</span><span id="s-svc">—</span>
-            </div>
-            <div class="flex justify-between font-bold text-base border-t pt-2 mt-2">
-              <span>Grand Total</span><span id="s-grand" class="text-blue-700">—</span>
-            </div>
-          </div>
-
-          <button onclick="generateBill()"
-            class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white rounded-lg py-2.5 text-sm font-semibold">
-            Generate Bill
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Generated bill + payment -->
-    <div id="payment-section" class="hidden bg-white rounded-xl shadow p-5">
-      <div class="flex items-start justify-between mb-4">
-        <div>
-          <h2 class="font-bold text-xl" id="pay-bill-number"></h2>
-          <p class="text-sm text-gray-500" id="pay-fiscal"></p>
-        </div>
-        <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">UNPAID</span>
-      </div>
-
-      <div class="text-2xl font-bold text-gray-800 mb-4">
-        Total: <span id="pay-total" class="text-blue-700"></span>
-      </div>
-
-      <!-- Payment method -->
-      <div class="mb-4">
-        <p class="text-sm font-medium text-gray-600 mb-2">Payment Method</p>
-        <div class="flex flex-wrap gap-2">
-          <button onclick="setPayMethod('cash')" data-pm="cash"
-            class="pm-btn px-4 py-2 rounded-lg border text-sm font-medium border-gray-300 hover:border-blue-400">
-            💵 Cash
-          </button>
-          <button onclick="setPayMethod('card')" data-pm="card"
-            class="pm-btn px-4 py-2 rounded-lg border text-sm font-medium border-gray-300 hover:border-blue-400">
-            💳 Card
-          </button>
-          <button onclick="setPayMethod('qr')" data-pm="qr"
-            class="pm-btn px-4 py-2 rounded-lg border text-sm font-medium border-gray-300 hover:border-blue-400">
-            📱 QR
-          </button>
-          <button onclick="setPayMethod('esewa')" data-pm="esewa"
-            class="pm-btn px-4 py-2 rounded-lg border text-sm font-medium border-gray-300 hover:border-blue-400">
-            eSewa
-          </button>
-          <button onclick="setPayMethod('khalti')" data-pm="khalti"
-            class="pm-btn px-4 py-2 rounded-lg border text-sm font-medium border-gray-300 hover:border-blue-400">
-            Khalti
-          </button>
-        </div>
-      </div>
-
-      <!-- QR payment display -->
-      <div id="qr-payment-wrap" class="hidden mb-4">
-        <div class="flex flex-col items-center gap-3 p-5 bg-gray-50 border border-dashed border-gray-300 rounded-xl">
-          <p class="text-sm font-semibold text-gray-700">Scan to Pay</p>
-          <div id="qr-canvas" class="bg-white p-3 rounded-lg shadow"></div>
-          <p id="qr-amount-label" class="text-base font-bold text-blue-700"></p>
-          <p class="text-xs text-gray-400">Use eSewa / Khalti / any UPI app to scan</p>
-        </div>
-      </div>
-
-      <!-- Cash tendered -->
-      <div id="cash-tendered-wrap" class="hidden mb-4">
-        <label class="block text-sm font-medium text-gray-600 mb-1">Cash Tendered</label>
-        <input id="cash-tendered" type="number" placeholder="Enter amount"
-          class="border rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          oninput="updateChange()" />
-        <span class="ml-2 text-sm text-gray-500">Change: <strong id="change-display">—</strong></span>
-      </div>
-
-      <div class="flex gap-3">
-        <button onclick="printBill()"
-          class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">
-          🖨 Print Bill
-        </button>
-        <button onclick="confirmPayment()"
-          class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm font-semibold">
-          Confirm Payment
-        </button>
-      </div>
-    </div>
-
-    <!-- Paid confirmation -->
-    <div id="paid-section" class="hidden bg-white rounded-xl shadow p-8 text-center animate-pop">
-      <!-- Animated checkmark -->
-      <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-        <svg class="w-11 h-11 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-        </svg>
-      </div>
-
-      <h2 class="text-2xl font-extrabold text-green-700 mb-1">Payment Successful!</h2>
-      <p class="text-gray-400 text-sm mb-1">Your transaction has been completed.</p>
-      <p id="paid-msg" class="text-gray-600 text-sm font-medium mb-2"></p>
-
-      <!-- Thank-you banner -->
-      <div class="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl px-6 py-4 my-4 text-center">
-        <p class="text-lg font-semibold text-gray-700">🙏 Thank You for Dining With Us!</p>
-        <p class="text-sm text-gray-500 mt-1">We hope to see you again soon. Have a wonderful day!</p>
-      </div>
-
-      <div class="flex gap-3 justify-center mt-4">
-        <button onclick="printBill()"
-          class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">🖨 Print Receipt</button>
-        <button onclick="resetBilling()"
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-          New Bill
-        </button>
-      </div>
-    </div>
+  <!-- Tabs -->
+  <div class="flex gap-1 bg-white rounded-xl p-1 shadow-sm w-fit">
+    <button data-tab="open" onclick="setTab('open')" class="tab px-4 py-2 rounded-lg text-sm font-semibold">💳 Ready to bill <span id="open-count" class="ml-1 text-xs"></span></button>
+    <button data-tab="bills" onclick="setTab('bills')" class="tab px-4 py-2 rounded-lg text-sm font-semibold">🧾 Bills</button>
   </div>
 
-  <!-- ===== TAB: BILL HISTORY ===== -->
-  <div id="tab-history" class="hidden">
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-      <div class="px-5 py-3 border-b flex items-center gap-3">
-        <select id="hist-filter"
-          onchange="loadHistory()"
-          class="border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-          <option value="">All payments</option>
-          <option value="paid">Paid</option>
-          <option value="unpaid">Unpaid</option>
-        </select>
-        <span class="ml-auto text-sm text-gray-400" id="hist-count"></span>
-      </div>
+  <!-- Open orders -->
+  <section id="tab-open" class="space-y-5">
+    <p class="text-sm text-gray-500">A table appears here as soon as the kitchen accepts its order. When the guest pays,
+      tap <b>Take payment</b>, then print the final bill.</p>
+    <div id="open-grid" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));"></div>
+    <div id="open-empty" class="hidden text-center py-12 text-gray-500">
+      <div class="text-5xl mb-2">✅</div><p class="font-semibold">No tables waiting to pay</p>
+      <a href="/orders?type=takeaway" class="inline-block mt-3 text-blue-700 font-semibold hover:underline">+ Start a takeaway order</a>
+    </div>
+    <div id="waiting-wrap" class="hidden">
+      <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">⏳ Sent — waiting for the kitchen to accept</h2>
+      <div id="waiting-grid" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));"></div>
+    </div>
+  </section>
+
+  <!-- Bill history -->
+  <section id="tab-bills" class="hidden bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="p-3 border-b flex flex-wrap items-center gap-2">
+      <input id="f-date" type="date" class="border rounded-lg px-3 py-2 text-sm">
+      <select id="f-status" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">All bills</option><option value="paid">Paid</option>
+        <option value="unpaid">Unpaid</option><option value="void">Void</option>
+      </select>
+      <input id="f-search" type="search" placeholder="Bill no. or customer" class="border rounded-lg px-3 py-2 text-sm flex-1 min-w-[10rem]">
+      <span id="bills-count" class="text-sm text-gray-500"></span>
+    </div>
+    <div class="overflow-x-auto">
       <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b text-gray-500 text-left bg-gray-50">
-            <th class="px-5 py-2 font-medium">Bill #</th>
-            <th class="px-3 py-2 font-medium">Order</th>
-            <th class="px-3 py-2 font-medium">Total</th>
-            <th class="px-3 py-2 font-medium">Method</th>
-            <th class="px-3 py-2 font-medium">Status</th>
-            <th class="px-3 py-2 font-medium">Date</th>
-            <th class="px-3 py-2"></th>
+        <thead class="bg-gray-50 text-gray-500 text-left">
+          <tr>
+            <th class="px-4 py-2.5 font-medium">Bill</th>
+            <th class="px-3 py-2.5 font-medium">Time</th>
+            <th class="px-3 py-2.5 font-medium">For</th>
+            <th class="px-3 py-2.5 font-medium text-right">Total</th>
+            <th class="px-3 py-2.5 font-medium">Paid by</th>
+            <th class="px-3 py-2.5 font-medium">Status</th>
+            <th class="px-3 py-2.5"></th>
           </tr>
         </thead>
-        <tbody id="hist-body"></tbody>
+        <tbody id="bills-body"></tbody>
       </table>
     </div>
-  </div>
-
-</div>
+  </section>
+</main>
 
 <script>
-  const token = localStorage.getItem('token');
-  if (!token) window.location.href = '/login';
+const { api, esc, money, num, toast, fail } = POS;
+const ME = POS.user();
+const IS_ADMIN = ['admin', 'superadmin'].includes(ME.role);
+let tab = 'open';
 
-  let previewSubtotal = 0;
-  let currentBillId = null;
-  let selectedPayMethod = null;
-  let currentBillData = null;
-  let activeTab = 'generate';
-  let qrInstance = null;
-  let pollTimer = null;
+async function init() {
+  if (!POS.guard(['admin', 'cashier', 'superadmin'])) return;
+  POS.nav('/billing');
+  document.getElementById('f-date').value = POS.todayISO();
+  ['f-date', 'f-status'].forEach(id => document.getElementById(id).onchange = loadBills);
+  document.getElementById('f-search').oninput = POS.debounce(loadBills, 300);
+  document.addEventListener('pos:paid', () => { loadSummary(); loadOpen(); });
+  setTab(new URLSearchParams(location.search).get('tab') === 'bills' ? 'bills' : 'open');
+  loadSummary();
+  loadOpen();
+  setInterval(() => { if (!document.hidden) loadSummary(); }, 30000);
+  setInterval(() => { if (!document.hidden && tab === 'open') loadOpen(); }, 8000);
 
-  async function api(path, opts = {}) {
-    return fetch(path, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers||{}) },
-      ...opts,
-    });
-  }
+  // Old links from the floor plan: /billing?order_id=12 opens the pay dialog directly
+  const orderId = new URLSearchParams(location.search).get('order_id');
+  if (orderId) PaymentDialog.open(Number(orderId), { onPaid: () => { loadSummary(); loadOpen(); } });
+}
 
-  function fmt(n) { return `NPR ${Number(n).toFixed(2)}`; }
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab').forEach(b => {
+    const on = b.dataset.tab === t;
+    b.className = `tab px-4 py-2 rounded-lg text-sm font-semibold ${on ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`;
+  });
+  document.getElementById('tab-open').classList.toggle('hidden', t !== 'open');
+  document.getElementById('tab-bills').classList.toggle('hidden', t !== 'bills');
+  if (t === 'bills') loadBills();
+}
 
-  // ---- Tabs ----
-  function setTab(tab) {
-    activeTab = tab;
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      const active = b.dataset.tab === tab;
-      b.classList.toggle('border-blue-600', active);
-      b.classList.toggle('text-blue-600', active);
-      b.classList.toggle('border-transparent', !active);
-      b.classList.toggle('text-gray-500', !active);
-    });
-    document.getElementById('tab-generate').classList.toggle('hidden', tab !== 'generate');
-    document.getElementById('tab-history').classList.toggle('hidden', tab !== 'history');
-    if (tab === 'history') loadHistory();
-  }
+async function loadSummary() {
+  let s;
+  try { s = await api('/api/billing/summary/today'); } catch (e) { return; }
+  const methods = Object.entries(s.by_payment_method || {}).sort((a, b) => b[1] - a[1]);
+  const card = (title, value, sub, color) => `
+    <div class="bg-white rounded-2xl shadow-sm p-4 border-l-4 ${color}">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">${title}</p>
+      <p class="text-2xl font-extrabold text-gray-900 mt-1 tabular-nums">${value}</p>
+      <p class="text-xs text-gray-500 mt-0.5">${sub}</p>
+    </div>`;
+  document.getElementById('summary').innerHTML =
+    card("Today's sales", money(s.total_sales), `${s.bill_count} bill(s)`, 'border-green-500') +
+    card('VAT collected', money(s.total_vat_collected), `Service charge ${num(s.total_service_charge)}`, 'border-blue-500') +
+    card('Discounts given', money(s.total_discount || 0), 'Today', 'border-amber-500') +
+    `<div class="bg-white rounded-2xl shadow-sm p-4 border-l-4 border-purple-500">
+       <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">By payment method</p>
+       ${methods.length ? methods.map(([m, v]) => `<div class="flex justify-between text-sm"><span class="capitalize">${esc(m === 'qr' ? 'FonePay' : m)}</span><span class="font-semibold tabular-nums">${num(v)}</span></div>`).join('')
+         : '<p class="text-sm text-gray-400">No sales yet</p>'}
+     </div>`;
+}
 
-  // ---- Init ----
-  async function init() {
-    const [userRes, ordersRes] = await Promise.all([
-      api('/api/auth/me'),
-      api('/api/orders?status_filter=active'),
-    ]);
-    const user = await userRes.json();
-    document.getElementById('nav-user').textContent = `${user.full_name} (${user.role})`;
+let knownReady = null;   // order ids already in the queue, to announce new arrivals
 
-    const orders = await ordersRes.json();
-    const sel = document.getElementById('order-select');
-    orders.forEach(o => {
-      const label = o.table_number
-        ? `Order #${o.id} — Table ${o.table_number}`
-        : `Order #${o.id} — ${o.order_type} (${o.subtotal} NPR)`;
-      sel.innerHTML += `<option value="${o.id}">${label}</option>`;
-    });
+function orderCard(o, ready) {
+  return `
+    <div class="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-2 ${ready ? '' : 'opacity-75'}">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-lg font-extrabold">${o.table_number ? 'Table ' + esc(o.table_number) : (o.order_type === 'delivery' ? '🛵 ' : '🥡 ') + esc(POS.label(o.order_type))}</p>
+          <p class="text-xs text-gray-500">#${o.id} · open ${POS.duration(o.minutes_open)}${o.customer_name ? ' · ' + esc(o.customer_name) : ''}</p>
+        </div>
+        ${o.bill_open ? '<span class="text-[11px] font-bold bg-purple-100 text-purple-800 rounded-full px-2 py-0.5">🧾 bill issued</span>' : ''}
+      </div>
+      <div class="flex items-center gap-1 flex-wrap">
+        ${o.awaiting_accept ? `<span class="text-[11px] font-bold bg-yellow-100 text-yellow-800 rounded-full px-2 py-0.5">⏳ ${o.awaiting_accept} to accept</span>` : ''}
+        ${o.in_kitchen - o.awaiting_accept > 0 ? `<span class="text-[11px] font-bold bg-orange-100 text-orange-800 rounded-full px-2 py-0.5">${o.in_kitchen - o.awaiting_accept} cooking</span>` : ''}
+        ${o.ready ? `<span class="text-[11px] font-bold bg-green-100 text-green-800 rounded-full px-2 py-0.5">${o.ready} ready</span>` : ''}
+        ${o.pending ? `<span class="text-[11px] font-bold bg-gray-100 text-gray-700 rounded-full px-2 py-0.5">${o.pending} not sent</span>` : ''}
+      </div>
+      <p class="text-2xl font-extrabold tabular-nums">${money(o.estimated_total)}</p>
+      <div class="flex gap-2 mt-auto">
+        <a href="/orders?order_id=${o.id}" class="px-4 py-2.5 rounded-xl border font-semibold text-sm hover:bg-gray-50">Open</a>
+        ${ready ? `<button onclick="payOrder(${o.id})" class="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold">💳 Take payment</button>`
+                : '<span class="flex-1 py-2.5 text-center text-sm text-yellow-700 font-semibold">Waiting for kitchen…</span>'}
+      </div>
+    </div>`;
+}
 
-    // Pre-select order or bill from URL query params (e.g. arriving from floor plan)
-    const params = new URLSearchParams(window.location.search);
-    const preOrderId = params.get('order_id');
-    const preBillId  = params.get('bill_id');
-    if (preOrderId) {
-      sel.value = preOrderId;
-      await loadOrderPreview();
-    } else if (preBillId) {
-      // Load bill directly by ID
-      const bRes = await api(`/api/billing/bills/${preBillId}`);
-      if (bRes.ok) {
-        const b = await bRes.json();
-        currentBillId   = b.id;
-        currentBillData = b;
-        // Select the matching order in dropdown if present
-        if (b.order_id) sel.value = b.order_id;
-        showPaymentSection(b);
-      }
+async function loadOpen() {
+  let d;
+  try { d = await api('/api/tables/overview'); } catch (e) { fail(e); return; }
+  const orders = [
+    ...d.tables.filter(t => t.order).map(t => ({ ...t.order, table_number: t.table_number })),
+    ...d.open_orders,
+  ].filter(o => o.items > 0).sort((a, b) => b.minutes_open - a.minutes_open);
+  // A table reaches the cashier only after the kitchen has accepted its order
+  const ready = orders.filter(o => o.ready_to_bill);
+  const waiting = orders.filter(o => !o.ready_to_bill && o.awaiting_accept > 0);
+
+  // The kitchen just accepted an order: tell the cashier
+  const ids = new Set(ready.map(o => o.id));
+  if (knownReady) {
+    const fresh = ready.filter(o => !knownReady.has(o.id));
+    if (fresh.length) {
+      POS.beep(2, 660);
+      fresh.forEach(o => toast(`🧾 ${o.table_number ? 'Table ' + o.table_number : POS.label(o.order_type)} is ready to bill — ${money(o.estimated_total)}`, { type: 'info' }));
     }
   }
+  knownReady = ids;
 
-  // ---- Preview ----
-  async function loadOrderPreview() {
-    const orderId = document.getElementById('order-select').value;
-    if (!orderId) { alert('Select an order first.'); return; }
+  document.getElementById('open-count').textContent = ready.length ? `(${ready.length})` : '';
+  document.getElementById('open-empty').classList.toggle('hidden', ready.length > 0);
+  document.getElementById('open-grid').innerHTML = ready.map(o => orderCard(o, true)).join('');
+  document.getElementById('waiting-wrap').classList.toggle('hidden', !waiting.length);
+  document.getElementById('waiting-grid').innerHTML = waiting.map(o => orderCard(o, false)).join('');
+}
 
-    // Check if bill already exists
-    const existing = await api(`/api/billing/bills/by-order/${orderId}`);
-    if (existing.ok) {
-      const b = await existing.json();
-      currentBillId = b.id;
-      currentBillData = b;
-      showPaymentSection(b);
-      return;
-    }
+function payOrder(orderId) {
+  PaymentDialog.open(orderId, { onPaid: () => { loadSummary(); loadOpen(); } });
+}
 
-    const res = await api(`/api/orders/${orderId}`);
-    const order = await res.json();
-    previewSubtotal = order.subtotal;
+async function loadBills() {
+  const q = new URLSearchParams({ limit: '200' });
+  const date = document.getElementById('f-date').value;
+  const status = document.getElementById('f-status').value;
+  const search = document.getElementById('f-search').value.trim();
+  if (date && !search) q.set('date', date);
+  if (status) q.set('payment_status', status);
+  if (search) q.set('search', search);
+  let bills;
+  try { bills = await api(`/api/billing/bills?${q}`); } catch (e) { fail(e); return; }
+  document.getElementById('bills-count').textContent = `${bills.length} bill(s)`;
+  const badge = s => ({
+    paid:   '<span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full">Paid</span>',
+    unpaid: '<span class="bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full">Unpaid</span>',
+    void:   '<span class="bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">Void</span>',
+  })[s] || esc(s);
+  document.getElementById('bills-body').innerHTML = bills.length ? bills.map(b => `
+    <tr class="border-t hover:bg-gray-50 ${b.payment_status === 'void' ? 'text-gray-400' : ''}">
+      <td class="px-4 py-2.5 font-mono text-xs">${esc(b.bill_number)}${b.print_count > 1 ? ` <span class="text-gray-400">(${b.print_count}×)</span>` : ''}</td>
+      <td class="px-3 py-2.5 whitespace-nowrap">${POS.dateTime(b.created_at)}</td>
+      <td class="px-3 py-2.5">${b.table_number ? 'Table ' + esc(b.table_number) : esc(POS.label(b.order_type))}${b.customer_name ? `<span class="block text-xs text-gray-500">${esc(b.customer_name)}${b.customer_pan ? ' · PAN ' + esc(b.customer_pan) : ''}</span>` : ''}</td>
+      <td class="px-3 py-2.5 text-right font-semibold tabular-nums">${num(b.grand_total)}</td>
+      <td class="px-3 py-2.5 text-xs">${b.payments.length ? b.payments.map(p => `${esc(p.label)} ${num(p.amount)}`).join('<br>') : esc(b.payment_method || '—')}</td>
+      <td class="px-3 py-2.5">${badge(b.payment_status)}</td>
+      <td class="px-3 py-2.5 whitespace-nowrap text-right">
+        <button onclick="POS.printReceipt(${b.id})" class="text-blue-700 font-semibold hover:underline mr-2">🖨 Print</button>
+        <a href="/receipt/${b.id}" target="_blank" class="text-gray-600 hover:underline mr-2">View</a>
+        ${b.payment_status === 'unpaid' ? `<button onclick="payOrder(${b.order_id})" class="text-green-700 font-semibold hover:underline mr-2">Pay</button>` : ''}
+        ${IS_ADMIN && b.payment_status !== 'void' ? `<button onclick="voidBill(${b.id}, '${esc(b.bill_number)}')" class="text-red-600 hover:underline">Void</button>` : ''}
+      </td>
+    </tr>`).join('')
+    : '<tr><td colspan="7" class="px-4 py-12 text-center text-gray-400">No bills for this filter</td></tr>';
+}
 
-    document.getElementById('preview-order-label').textContent =
-      `Order #${order.id} — ${order.table_number ? 'Table ' + order.table_number : order.order_type}`;
+async function voidBill(id, number) {
+  const reason = await POS.prompt(`Void bill ${number}?`, {
+    message: 'Voiding a paid bill refunds it: stock is restored and the order is cancelled. The bill number stays in the records (IRD).',
+    chips: ['Refund to customer', 'Billed wrong order', 'Wrong payment entered'],
+    required: true, requiredText: 'A reason is required', okText: 'Void bill', danger: true,
+  });
+  if (!reason) return;
+  try {
+    await api(`/api/billing/bills/${id}/void`, { method: 'POST', body: { reason } });
+    toast(`Bill ${number} voided`);
+    loadBills(); loadSummary(); loadOpen();
+  } catch (e) { fail(e); }
+}
 
-    const tbody = document.getElementById('preview-items');
-    tbody.innerHTML = order.items.map(i => `
-      <tr class="border-b last:border-0">
-        <td class="py-2 text-gray-800">${i.name}</td>
-        <td class="py-2 text-center text-gray-600">${i.quantity}</td>
-        <td class="py-2 text-right text-gray-600">${i.unit_price.toFixed(2)}</td>
-        <td class="py-2 text-right font-medium">${i.line_total.toFixed(2)}</td>
-      </tr>`).join('');
-
-    document.getElementById('bill-preview').classList.remove('hidden');
-    document.getElementById('payment-section').classList.add('hidden');
-    document.getElementById('paid-section').classList.add('hidden');
-    recalcPreview();
-  }
-
-  function recalcPreview() {
-    const dt = document.getElementById('disc-type').value;
-    const dv = parseFloat(document.getElementById('disc-value').value) || 0;
-    const inclSvc = document.getElementById('incl-service').checked;
-
-    let discAmt = 0;
-    if (dt === 'percentage') discAmt = previewSubtotal * dv / 100;
-    else if (dt === 'flat') discAmt = Math.min(dv, previewSubtotal);
-
-    const taxable = previewSubtotal - discAmt;
-    const vat = taxable * 0.13;
-    const svc = inclSvc ? taxable * 0.10 : 0;
-    const grand = taxable + vat + svc;
-
-    document.getElementById('s-subtotal').textContent = fmt(previewSubtotal);
-    document.getElementById('s-disc-label').textContent = dt === 'percentage'
-      ? `Discount (${dv}%)` : 'Discount';
-    document.getElementById('s-disc').textContent = `-${fmt(discAmt)}`;
-    document.getElementById('disc-row').style.opacity = discAmt > 0 ? '1' : '0.4';
-    document.getElementById('s-taxable').textContent = fmt(taxable);
-    document.getElementById('s-vat').textContent = fmt(vat);
-    document.getElementById('s-svc').textContent = fmt(svc);
-    document.getElementById('svc-row').style.opacity = inclSvc ? '1' : '0.4';
-    document.getElementById('s-grand').textContent = fmt(grand);
-  }
-
-  // ---- Generate Bill ----
-  async function generateBill() {
-    const orderId = document.getElementById('order-select').value;
-    const body = {
-      order_id: parseInt(orderId),
-      discount_type: document.getElementById('disc-type').value || null,
-      discount_value: parseFloat(document.getElementById('disc-value').value) || 0,
-      include_service_charge: document.getElementById('incl-service').checked,
-      customer_name: document.getElementById('cust-name').value || null,
-      customer_pan: document.getElementById('cust-pan').value || null,
-    };
-
-    const res = await api('/api/billing/bills', { method: 'POST', body: JSON.stringify(body) });
-    if (!res.ok) {
-      const d = await res.json();
-      alert(d.detail || 'Failed to generate bill');
-      return;
-    }
-    const bill = await res.json();
-    currentBillId = bill.id;
-    currentBillData = bill;
-    document.getElementById('bill-preview').classList.add('hidden');
-    showPaymentSection(bill);
-  }
-
-  function showPaymentSection(bill) {
-    document.getElementById('pay-bill-number').textContent = `Bill: ${bill.bill_number}`;
-    document.getElementById('pay-fiscal').textContent = `Fiscal Year: ${bill.fiscal_year}`;
-    document.getElementById('pay-total').textContent = fmt(bill.grand_total);
-    // Reset QR and payment method state
-    clearQR();
-    document.getElementById('qr-payment-wrap').classList.add('hidden');
-    document.getElementById('cash-tendered-wrap').classList.add('hidden');
-    selectedPayMethod = null;
-    document.querySelectorAll('.pm-btn').forEach(b => {
-      b.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
-      b.classList.add('border-gray-300');
-    });
-    document.getElementById('payment-section').classList.remove('hidden');
-    document.getElementById('paid-section').classList.add('hidden');
-  }
-
-  // ---- Payment ----
-  const QR_METHODS = new Set(['qr', 'esewa', 'khalti']);
-
-  function clearQR() {
-    if (qrInstance) { qrInstance.clear(); qrInstance = null; }
-    document.getElementById('qr-canvas').innerHTML = '';
-    stopPolling();
-  }
-
-  function stopPolling() {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  }
-
-  async function loadFonePayQR() {
-    const canvas = document.getElementById('qr-canvas');
-    canvas.innerHTML = '<p class="text-xs text-gray-400 animate-pulse">Connecting to FonePay…</p>';
-    document.getElementById('qr-amount-label').textContent = '';
-
-    const res = await api(`/api/billing/bills/${currentBillId}/fonepay-qr`, { method: 'POST' });
-    if (!res.ok) {
-      const d = await res.json();
-      canvas.innerHTML = `<p class="text-xs text-red-500">FonePay error: ${d.detail}</p>`;
-      return;
-    }
-    const data = await res.json();
-
-    canvas.innerHTML = '';
-    if (data.qr_image) {
-      // FonePay returned a base64 image
-      const img = document.createElement('img');
-      img.src = data.qr_image.startsWith('data:') ? data.qr_image : `data:image/png;base64,${data.qr_image}`;
-      img.className = 'w-48 h-48';
-      canvas.appendChild(img);
-    } else if (data.qr_data) {
-      // Render the QR string with qrcode.js
-      qrInstance = new QRCode(canvas, {
-        text: data.qr_data,
-        width: 200, height: 200,
-        colorDark: '#1e293b', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M,
-      });
-    } else {
-      canvas.innerHTML = '<p class="text-xs text-red-500">No QR data received from FonePay.</p>';
-      return;
-    }
-
-    document.getElementById('qr-amount-label').textContent = `NPR ${Number(data.amount).toFixed(2)}`;
-
-    // Poll for payment confirmation every 3 seconds
-    stopPolling();
-    pollTimer = setInterval(async () => {
-      const statusRes = await api(`/api/billing/bills/${currentBillId}/payment-status`);
-      if (!statusRes.ok) return;
-      const status = await statusRes.json();
-      if (status.payment_status === 'paid') {
-        stopPolling();
-        const billRes = await api(`/api/billing/bills/${currentBillId}`);
-        currentBillData = await billRes.json();
-        clearQR();
-        document.getElementById('qr-payment-wrap').classList.add('hidden');
-        document.getElementById('payment-section').classList.add('hidden');
-        showPaidScreen(currentBillData);
-      }
-    }, 3000);
-  }
-
-  function setPayMethod(method) {
-    selectedPayMethod = method;
-    document.querySelectorAll('.pm-btn').forEach(b => {
-      const active = b.dataset.pm === method;
-      b.classList.toggle('bg-blue-600', active);
-      b.classList.toggle('text-white', active);
-      b.classList.toggle('border-blue-600', active);
-      b.classList.toggle('border-gray-300', !active);
-    });
-    document.getElementById('cash-tendered-wrap').classList.toggle('hidden', method !== 'cash');
-
-    const showQR = QR_METHODS.has(method) && currentBillData;
-    document.getElementById('qr-payment-wrap').classList.toggle('hidden', !showQR);
-    if (showQR) loadFonePayQR();
-    else clearQR();
-  }
-
-  function showPaidScreen(bill) {
-    const paidSection = document.getElementById('paid-section');
-    paidSection.classList.remove('animate-pop');
-    void paidSection.offsetWidth;
-    paidSection.classList.add('animate-pop');
-    paidSection.classList.remove('hidden');
-    let msg = `NPR ${bill.grand_total.toFixed(2)} received via ${(bill.payment_method || '').toUpperCase()}`;
-    if (bill.change != null && bill.change >= 0) msg += ` — Change: NPR ${bill.change.toFixed(2)}`;
-    document.getElementById('paid-msg').textContent = msg;
-  }
-
-  function updateChange() {
-    if (!currentBillData) return;
-    const tendered = parseFloat(document.getElementById('cash-tendered').value) || 0;
-    const change = tendered - currentBillData.grand_total;
-    document.getElementById('change-display').textContent =
-      change >= 0 ? `NPR ${change.toFixed(2)}` : '—';
-  }
-
-  async function confirmPayment() {
-    if (!selectedPayMethod) { alert('Select a payment method.'); return; }
-    // QR methods are paid via FonePay callback — manual confirm not needed
-    if (QR_METHODS.has(selectedPayMethod)) {
-      alert('Please complete the payment by scanning the QR code. The screen will update automatically.');
-      return;
-    }
-    const tendered = parseFloat(document.getElementById('cash-tendered').value) || null;
-
-    const res = await api(`/api/billing/bills/${currentBillId}/pay`, {
-      method: 'POST',
-      body: JSON.stringify({
-        payment_method: selectedPayMethod,
-        amount_tendered: tendered,
-      }),
-    });
-    if (!res.ok) { const d = await res.json(); alert(d.detail); return; }
-    const bill = await res.json();
-    currentBillData = bill;
-
-    clearQR();
-    document.getElementById('qr-payment-wrap').classList.add('hidden');
-    document.getElementById('payment-section').classList.add('hidden');
-    showPaidScreen(bill);
-  }
-
-  // ---- Print ----
-  async function printBill() {
-    if (!currentBillId) return;
-    // Record print
-    await api(`/api/billing/bills/${currentBillId}/print`, { method: 'PATCH' });
-
-    const bill = currentBillData;
-    const lines = bill.items.map(i =>
-      `${String(i.quantity).padStart(2)}x ${i.name.padEnd(20)} ${String(i.line_total.toFixed(2)).padStart(8)}`
-    ).join('\n');
-
-    document.getElementById('print-area').innerHTML = `<pre style="font-size:12px;line-height:1.5">
-================================
-   ${bill.items.length > 0 ? 'RESTAURANT BILLING SYSTEM' : ''}
-================================
-Bill No: ${bill.bill_number}
-Fiscal Year: ${bill.fiscal_year}
-${bill.table_number ? 'Table: ' + bill.table_number : bill.order_type?.toUpperCase() || ''}
-Date: ${new Date().toLocaleString()}
-${bill.customer_name ? 'Customer: ' + bill.customer_name : ''}
-${bill.customer_pan ? 'PAN: ' + bill.customer_pan : ''}
---------------------------------
-${lines}
---------------------------------
-Subtotal:     ${String(bill.subtotal.toFixed(2)).padStart(10)}
-${bill.discount_amount > 0 ? 'Discount:     ' + String(('-' + bill.discount_amount.toFixed(2))).padStart(10) + '\n' : ''}Taxable Amt:  ${String(bill.taxable_amount.toFixed(2)).padStart(10)}
-VAT (13%):    ${String(bill.vat_amount.toFixed(2)).padStart(10)}
-${bill.service_charge > 0 ? 'Svc Charge:   ' + String(bill.service_charge.toFixed(2)).padStart(10) + '\n' : ''}================================
-TOTAL NPR:    ${String(bill.grand_total.toFixed(2)).padStart(10)}
-================================
-${bill.payment_status === 'paid' ? 'Payment: ' + (bill.payment_method || '').toUpperCase() + '\n*** PAID ***' : ''}
-
-   Thank you for dining with us!
-================================</pre>`;
-
-    window.print();
-  }
-
-  function resetBilling() {
-    currentBillId = null;
-    currentBillData = null;
-    selectedPayMethod = null;
-    stopPolling();
-    clearQR();
-    document.getElementById('qr-payment-wrap').classList.add('hidden');
-    document.getElementById('order-select').value = '';
-    document.getElementById('bill-preview').classList.add('hidden');
-    document.getElementById('payment-section').classList.add('hidden');
-    document.getElementById('paid-section').classList.add('hidden');
-    document.getElementById('disc-type').value = '';
-    document.getElementById('disc-value').value = '0';
-    document.getElementById('incl-service').checked = true;
-    document.getElementById('cust-name').value = '';
-    document.getElementById('cust-pan').value = '';
-    init();
-  }
-
-  // ---- History ----
-  async function loadHistory() {
-    const filter = document.getElementById('hist-filter').value;
-    const url = '/api/billing/bills' + (filter ? `?payment_status=${filter}` : '');
-    const res = await api(url);
-    const bills = await res.json();
-    document.getElementById('hist-count').textContent = `${bills.length} bill(s)`;
-
-    const statusBadge = s => s === 'paid'
-      ? '<span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">Paid</span>'
-      : '<span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full">Unpaid</span>';
-
-    document.getElementById('hist-body').innerHTML = bills.map(b => `
-      <tr class="border-b hover:bg-gray-50">
-        <td class="px-5 py-2.5 font-mono text-xs text-gray-700">${b.bill_number}</td>
-        <td class="px-3 py-2.5 text-gray-600">#${b.order_id}</td>
-        <td class="px-3 py-2.5 font-semibold">${fmt(b.grand_total)}</td>
-        <td class="px-3 py-2.5 text-gray-500">${b.payment_method || '—'}</td>
-        <td class="px-3 py-2.5">${statusBadge(b.payment_status)}</td>
-        <td class="px-3 py-2.5 text-xs text-gray-400">
-          ${b.created_at ? new Date(b.created_at).toLocaleDateString() : '—'}
-        </td>
-        <td class="px-3 py-2.5">
-          <button onclick="viewBillFromHistory(${b.id})"
-            class="text-xs text-blue-600 hover:underline">View</button>
-        </td>
-      </tr>`).join('');
-  }
-
-  async function viewBillFromHistory(id) {
-    const res = await api(`/api/billing/bills/${id}`);
-    currentBillData = await res.json();
-    currentBillId = id;
-    setTab('generate');
-    document.getElementById('bill-preview').classList.add('hidden');
-    if (currentBillData.payment_status === 'paid') {
-      document.getElementById('payment-section').classList.add('hidden');
-      document.getElementById('paid-section').classList.remove('hidden');
-      document.getElementById('paid-msg').textContent =
-        `${fmt(currentBillData.grand_total)} — ${(currentBillData.payment_method||'').toUpperCase()}`;
-    } else {
-      showPaymentSection(currentBillData);
-    }
-  }
-
-  init();
+init();
 </script>
 </body>
 </html>

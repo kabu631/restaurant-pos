@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
   <style>
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { animation: spin 0.8s linear infinite; }
@@ -14,34 +15,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col">
 
-<!-- ===== TOP NAV ===== -->
-<header class="bg-gray-900 text-white px-6 py-3 flex items-center justify-between shadow-lg shrink-0">
-  <div class="flex items-center gap-3">
-    <span class="text-2xl">🍽️</span>
-    <div>
-      <div class="font-bold text-lg leading-tight" id="nav-app-name">Restaurant POS</div>
-      <div class="text-xs text-gray-400" id="nav-fiscal">Loading...</div>
-    </div>
-  </div>
-  <div class="flex items-center gap-4">
-    <div class="text-right hidden sm:block">
-      <div id="nav-clock" class="font-mono text-sm text-gray-300"></div>
-      <div id="nav-date" class="text-xs text-gray-500"></div>
-    </div>
-    <div class="h-8 w-px bg-gray-700"></div>
-    <div class="flex items-center gap-2">
-      <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold" id="nav-avatar">?</div>
-      <div class="hidden sm:block">
-        <div class="text-sm font-medium" id="nav-user-name">Loading...</div>
-        <div class="text-xs text-gray-400 capitalize" id="nav-user-role"></div>
-      </div>
-    </div>
-    <button onclick="logout()"
-      class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-      Logout
-    </button>
-  </div>
-</header>
+<div id="pos-nav"></div>
 
 <!-- ===== MAIN ===== -->
 <main class="flex-1 p-6 max-w-7xl mx-auto w-full">
@@ -50,7 +24,7 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold text-gray-800" id="welcome-heading">Welcome back!</h1>
-      <p class="text-gray-500 text-sm mt-0.5">Here's what's happening today.</p>
+      <p class="text-gray-500 text-sm mt-0.5">Here's what's happening today · <span id="nav-fiscal">FY —</span></p>
     </div>
     <button onclick="refreshAll()" id="refresh-btn"
       class="flex items-center gap-2 bg-white border border-gray-300 hover:border-blue-400 text-gray-600 hover:text-blue-600 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-all">
@@ -132,11 +106,11 @@
       <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Quick Actions</h2>
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
 
-        <a href="/orders"
+        <a href="/orders?type=takeaway"
           class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 hover:border-blue-400 transition-all group cursor-pointer">
           <span class="text-3xl group-hover:scale-110 transition-transform">📋</span>
-          <span class="font-semibold text-blue-800 text-sm">New Order</span>
-          <span class="text-xs text-blue-500">Take orders & send KOT</span>
+          <span class="font-semibold text-blue-800 text-sm">Quick Order</span>
+          <span class="text-xs text-blue-500">Takeaway & delivery</span>
         </a>
 
         <a href="/tables"
@@ -144,6 +118,13 @@
           <span class="text-3xl group-hover:scale-110 transition-transform">🪑</span>
           <span class="font-semibold text-emerald-800 text-sm">Floor Plan</span>
           <span class="text-xs text-emerald-500">View & manage tables</span>
+        </a>
+
+        <a href="/reservations"
+          class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-amber-50 hover:bg-amber-100 border-2 border-amber-200 hover:border-amber-400 transition-all group cursor-pointer">
+          <span class="text-3xl group-hover:scale-110 transition-transform">📅</span>
+          <span class="font-semibold text-amber-800 text-sm">Bookings</span>
+          <span class="text-xs text-amber-600" id="quick-bookings">Reserve tables</span>
         </a>
 
         <a href="/kitchen"
@@ -157,7 +138,7 @@
           class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-purple-50 hover:bg-purple-100 border-2 border-purple-200 hover:border-purple-400 transition-all group cursor-pointer">
           <span class="text-3xl group-hover:scale-110 transition-transform">🧾</span>
           <span class="font-semibold text-purple-800 text-sm">Billing</span>
-          <span class="text-xs text-purple-500">Generate bills & reports</span>
+          <span class="text-xs text-purple-500">Settle bills & history</span>
         </a>
 
         <a href="/inventory"
@@ -238,19 +219,17 @@
 
 <script>
   // ===== Auth guard =====
-  const token = localStorage.getItem('token');
-  const user  = JSON.parse(localStorage.getItem('user') || '{}');
-  if (!token) window.location.href = '/login';
+  if (!POS.guard(['admin', 'cashier', 'superadmin'])) throw new Error('redirecting');
+  const token = POS.token();
+  const user = POS.user();
+  POS.nav('/dashboard');
 
   const headers = { 'Authorization': `Bearer ${token}` };
   const fmt = n => `NPR ${Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  const esc = POS.esc;
 
   // ===== Populate header =====
   function initHeader() {
-    document.getElementById('nav-user-name').textContent = user.full_name || user.username || '—';
-    document.getElementById('nav-user-role').textContent = user.role || '';
-    const initials = (user.full_name || user.username || '?').charAt(0).toUpperCase();
-    document.getElementById('nav-avatar').textContent = initials;
     document.getElementById('welcome-heading').textContent =
       `Welcome back, ${user.full_name ? user.full_name.split(' ')[0] : user.username}!`;
     // Show Staff Management card for admin only
@@ -268,27 +247,13 @@
     }
   }
 
-  // ===== Clock =====
-  function updateClock() {
-    const now = new Date();
-    document.getElementById('nav-clock').textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-    document.getElementById('nav-date').textContent = now.toLocaleDateString('en-US', {weekday:'short', year:'numeric', month:'short', day:'numeric'});
+  // ===== Nepal fiscal year (from the server — starts 1 Shrawan) =====
+  function showFiscal(fy) {
+    document.getElementById('nav-fiscal').textContent = `FY ${fy}`;
+    document.getElementById('footer-fiscal').textContent = fy;
   }
-  setInterval(updateClock, 1000);
-  updateClock();
-
-  // ===== Nepal fiscal year helper =====
-  function nepaliYear() {
-    const now = new Date();
-    const m = now.getMonth() + 1; // 1-12
-    const y = now.getFullYear();
-    const bs = m >= 4 ? y + 57 : y + 56;
-    const bs2 = (bs + 1) % 100;
-    return `${bs}/${bs2.toString().padStart(2,'0')}`;
-  }
-  const FISCAL = nepaliYear();
-  document.getElementById('nav-fiscal').textContent = `FY ${FISCAL}`;
-  document.getElementById('footer-fiscal').textContent = FISCAL;
+  if (user.fiscal_year) showFiscal(user.fiscal_year);
+  POS.api('/api/auth/me').then(me => showFiscal(me.fiscal_year)).catch(() => {});
 
   // ===== Fetch helpers =====
   async function fetchJSON(url) {
@@ -307,7 +272,7 @@
 
       // Payment breakdown
       const breakdown = d.by_payment_method || {};
-      const methods = { cash:'💵 Cash', card:'💳 Card', qr:'📱 QR/eSewa', wallet:'👛 Wallet', credit:'📑 Credit' };
+      const methods = { cash:'💵 Cash', card:'💳 Card', qr:'📱 FonePay', esewa:'🟢 eSewa', khalti:'🟣 Khalti', bank:'🏦 Bank', split:'➗ Split' };
       const bEl = document.getElementById('payment-breakdown');
       const total = d.total_sales ?? 0;
       const entries = Object.entries(breakdown).filter(([,v]) => v > 0);
@@ -384,8 +349,8 @@
           <div class="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
             <span class="text-base mt-0.5">⚠️</span>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-red-800 truncate">${i.name}</p>
-              <p class="text-xs text-red-600">${i.current_stock} ${i.unit} left (min: ${i.minimum_stock})</p>
+              <p class="text-sm font-semibold text-red-800 truncate">${esc(i.name)}</p>
+              <p class="text-xs text-red-600">${i.current_stock} ${esc(i.unit)} left (min: ${i.minimum_stock})</p>
             </div>
           </div>`).join('');
       }
@@ -426,6 +391,15 @@
     }
   }
 
+  // ===== Load: Today's bookings =====
+  async function loadBookings() {
+    try {
+      const list = await fetchJSON(`/api/reservations?date=${POS.todayISO()}&status_filter=booked`);
+      document.getElementById('quick-bookings').textContent =
+        list.length ? `${list.length} booked today` : 'Reserve tables';
+    } catch (e) { /* optional */ }
+  }
+
   // ===== Refresh all =====
   async function refreshAll() {
     const icon = document.getElementById('refresh-icon');
@@ -436,15 +410,9 @@
       loadKitchen(),
       loadInventory(),
       loadTables(),
+      loadBookings(),
     ]);
     icon.classList.remove('spinner');
-  }
-
-  // ===== Logout =====
-  async function logout() {
-    try { await fetch('/api/auth/logout', { method:'POST', headers }); } catch(_) {}
-    localStorage.clear();
-    window.location.href = '/login';
   }
 
   // ===== Init =====

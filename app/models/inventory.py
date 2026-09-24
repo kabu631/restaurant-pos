@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database import Base
+from app.utils import nepal
 
 
 class Ingredient(Base):
@@ -15,8 +16,8 @@ class Ingredient(Base):
     cost_per_unit     = Column(Float, default=0.0)         # Purchase cost in NPR
     supplier_name     = Column(String, nullable=True)
     last_purchased_at = Column(DateTime, nullable=True)
-    created_at        = Column(DateTime, server_default=func.now())
-    updated_at        = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at        = Column(DateTime, default=nepal.now, server_default=func.now())
+    updated_at        = Column(DateTime, default=nepal.now, server_default=func.now(), onupdate=nepal.now)
 
 
 class StockPurchase(Base):
@@ -29,7 +30,7 @@ class StockPurchase(Base):
     total_cost    = Column(Float, nullable=False)
     supplier_name = Column(String, nullable=True)
     purchased_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
-    purchased_at  = Column(DateTime, server_default=func.now())
+    purchased_at  = Column(DateTime, default=nepal.now, server_default=func.now())
 
 
 class AppSettings(Base):
@@ -41,5 +42,5 @@ class AppSettings(Base):
     id            = Column(Integer, primary_key=True, autoincrement=True)
     restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False)
     key           = Column(String, nullable=False)
-    value         = Column(String, nullable=True)
-    description   = Column(String, nullable=True)
+    value         = Column(Text, nullable=True)        # can hold an uploaded QR image
+    description   = Column(Text, nullable=True)

@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from app.database import Base
+from app.utils import nepal
 
 
 class AuditTrail(Base):
@@ -12,8 +13,8 @@ class AuditTrail(Base):
     action = Column(String, nullable=False)        # CREATE/UPDATE/DELETE/PRINT/LOGIN/LOGOUT/VOID
     table_name = Column(String, nullable=False)    # Which table was affected
     record_id = Column(Integer, nullable=True)     # ID of the affected record
-    old_value = Column(String, nullable=True)      # JSON of previous values
-    new_value = Column(String, nullable=True)      # JSON of new values
+    old_value = Column(Text, nullable=True)        # JSON of previous values
+    new_value = Column(Text, nullable=True)        # JSON of new values
     ip_address = Column(String, nullable=True)
-    reason = Column(String, nullable=True)         # Required for edits/voids (IRD)
-    created_at = Column(DateTime, server_default=func.now())
+    reason = Column(Text, nullable=True)           # Required for edits/voids (IRD)
+    created_at = Column(DateTime, default=nepal.now, server_default=func.now())

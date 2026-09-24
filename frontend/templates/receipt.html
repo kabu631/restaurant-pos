@@ -11,8 +11,10 @@
     font-family: 'Courier New', Courier, monospace;
     font-size: 13px;
     background: #f0f0f0;
+    color: #000;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
     padding: 20px;
   }
   .receipt {
@@ -23,38 +25,40 @@
     box-shadow: 0 2px 8px rgba(0,0,0,.15);
   }
   .center  { text-align: center; }
-  .right   { text-align: right; }
   .bold    { font-weight: bold; }
-  .lg      { font-size: 16px; }
   .xl      { font-size: 18px; }
   .divider { border-top: 1px dashed #555; margin: 6px 0; }
   .divider-solid { border-top: 2px solid #222; margin: 6px 0; }
-  .row     { display: flex; justify-content: space-between; margin: 2px 0; }
+  .row     { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
   .row .label { flex: 1; }
-  .row .val   { text-align: right; }
+  .row .val   { text-align: right; white-space: nowrap; }
   table { width: 100%; border-collapse: collapse; }
-  th, td { font-size: 12px; padding: 2px 0; }
+  th, td { font-size: 12px; padding: 2px 0; vertical-align: top; }
   th { border-bottom: 1px solid #333; }
   td.name { max-width: 140px; word-break: break-word; }
-  td.num  { text-align: right; }
-  .total-row { font-weight: bold; font-size: 14px; }
+  td.num  { text-align: right; padding-left: 4px; }
+  .total-row { font-weight: bold; font-size: 15px; }
   .footer-text { font-size: 11px; text-align: center; margin-top: 4px; }
-  .print-btn {
-    display: block; margin: 16px auto; padding: 10px 32px;
-    background: #1d4ed8; color: #fff; border: none;
-    border-radius: 6px; font-size: 14px; cursor: pointer;
-  }
-  .print-btn:hover { background: #1e3a8a; }
-  .void-banner {
-    background: #dc2626; color: #fff; text-align: center;
+  .doc-title { font-weight: bold; letter-spacing: 2px; margin-top: 4px; }
+  .banner {
+    color: #fff; text-align: center;
     font-weight: bold; padding: 4px; margin-bottom: 8px; letter-spacing: 2px;
   }
+  .banner.void { background: #dc2626; }
+  .banner.copy { background: #000; }
+  .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn {
+    padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
+    font-family: system-ui, sans-serif;
+  }
+  .btn-primary { background: #1d4ed8; color: #fff; }
+  .btn-light { background: #e5e7eb; color: #111; }
 
   /* ── Print styles (80mm roll) ── */
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff; padding: 0; display: block; }
     .receipt { width: 100%; box-shadow: none; border: none; padding: 4px; }
-    .print-btn { display: none; }
+    .actions { display: none; }
     @page { size: 80mm auto; margin: 4mm 2mm; }
   }
 </style>
@@ -63,7 +67,9 @@
 <div class="receipt">
 
   {% if bill.payment_status == 'void' %}
-  <div class="void-banner">★ VOID / CANCELLED ★</div>
+  <div class="banner void">★ VOID / CANCELLED ★</div>
+  {% elif copy_number > 0 %}
+  <div class="banner copy">COPY OF ORIGINAL - {{ copy_number }}</div>
   {% endif %}
 
   <!-- Restaurant header -->
@@ -71,7 +77,8 @@
     <div class="xl bold">{{ restaurant.name }}</div>
     {% if restaurant.address %}<div>{{ restaurant.address }}</div>{% endif %}
     {% if restaurant.phone %}<div>Tel: {{ restaurant.phone }}</div>{% endif %}
-    {% if restaurant.vat_number %}<div>VAT No: {{ restaurant.vat_number }}</div>{% endif %}
+    {% if restaurant.vat_number %}<div>{{ 'VAT' if bill.vat_amount else 'PAN' }} No: {{ restaurant.vat_number }}</div>{% endif %}
+    <div class="doc-title">{{ 'TAX INVOICE' if bill.vat_amount else 'INVOICE' }}</div>
     <div style="font-size:11px">Fiscal Year: {{ bill.fiscal_year }}</div>
   </div>
 
@@ -79,18 +86,17 @@
 
   <!-- Bill meta -->
   <div class="row"><span class="label">Bill No</span><span class="val bold">{{ bill.bill_number }}</span></div>
-  <div class="row"><span class="label">Date</span><span class="val">{{ bill.created_at[:19].replace('T',' ') }}</span></div>
+  <div class="row"><span class="label">Date</span><span class="val">{{ bill.date_display }}</span></div>
   {% if bill.table_number %}
-  <div class="row"><span class="label">Table</span><span class="val">{{ bill.table_number }}</span></div>
-  {% endif %}
-  {% if bill.order_type %}
+  <div class="row"><span class="label">Table</span><span class="val">{{ bill.table_number }}{% if bill.guests %} · {{ bill.guests }} pax{% endif %}</span></div>
+  {% elif bill.order_type %}
   <div class="row"><span class="label">Type</span><span class="val">{{ bill.order_type.replace('_',' ').title() }}</span></div>
   {% endif %}
   {% if bill.customer_name %}
   <div class="row"><span class="label">Customer</span><span class="val">{{ bill.customer_name }}</span></div>
   {% endif %}
   {% if bill.customer_pan %}
-  <div class="row"><span class="label">PAN</span><span class="val">{{ bill.customer_pan }}</span></div>
+  <div class="row"><span class="label">Buyer PAN</span><span class="val">{{ bill.customer_pan }}</span></div>
   {% endif %}
   {% if bill.cashier_name %}
   <div class="row"><span class="label">Cashier</span><span class="val">{{ bill.cashier_name }}</span></div>
@@ -114,7 +120,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for item in bill.items %}
+      {% for item in bill['items'] %}
       <tr>
         <td class="name">{{ item.name }}</td>
         <td class="num">{{ item.quantity }}</td>
@@ -131,15 +137,17 @@
   <div class="row"><span class="label">Subtotal</span><span class="val">{{ "%.2f"|format(bill.subtotal) }}</span></div>
   {% if bill.discount_amount and bill.discount_amount > 0 %}
   <div class="row">
-    <span class="label">Discount{% if bill.discount_type == 'percentage' %} ({{ bill.discount_value }}%){% endif %}</span>
+    <span class="label">Discount{% if bill.discount_type == 'percentage' %} ({{ '%g'|format(bill.discount_value) }}%){% endif %}</span>
     <span class="val">-{{ "%.2f"|format(bill.discount_amount) }}</span>
   </div>
   {% endif %}
   {% if bill.service_charge and bill.service_charge > 0 %}
-  <div class="row"><span class="label">Service Charge (10%)</span><span class="val">{{ "%.2f"|format(bill.service_charge) }}</span></div>
+  <div class="row"><span class="label">Service Charge ({{ '%g'|format(bill.service_charge_rate) }}%)</span><span class="val">{{ "%.2f"|format(bill.service_charge) }}</span></div>
   {% endif %}
+  {% if bill.vat_amount and bill.vat_amount > 0 %}
   <div class="row"><span class="label">Taxable Amount</span><span class="val">{{ "%.2f"|format(bill.taxable_amount) }}</span></div>
-  <div class="row"><span class="label">VAT (13%)</span><span class="val">{{ "%.2f"|format(bill.vat_amount) }}</span></div>
+  <div class="row"><span class="label">VAT ({{ '%g'|format(bill.vat_rate) }}%)</span><span class="val">{{ "%.2f"|format(bill.vat_amount) }}</span></div>
+  {% endif %}
 
   <div class="divider-solid"></div>
 
@@ -148,38 +156,50 @@
     <span class="val">{{ "%.2f"|format(bill.grand_total) }}</span>
   </div>
 
-  {% if bill.payment_method %}
-  <div class="row"><span class="label">Payment</span><span class="val">{{ bill.payment_method.upper() }}</span></div>
+  {% if bill.payments %}
+  <div class="divider"></div>
+  {% for p in bill.payments %}
+  <div class="row">
+    <span class="label">{{ p.label }}{% if p.reference %} <span style="font-size:10px">#{{ p.reference }}</span>{% endif %}</span>
+    <span class="val">{{ "%.2f"|format(p.tendered if p.tendered else p.amount) }}</span>
+  </div>
+  {% endfor %}
+  {% if bill.change %}
+  <div class="row bold"><span class="label">Change</span><span class="val">{{ "%.2f"|format(bill.change) }}</span></div>
   {% endif %}
-  {% if change is defined and change is not none and change >= 0 %}
-  <div class="row"><span class="label">Change</span><span class="val">{{ "%.2f"|format(change) }}</span></div>
+  {% elif bill.payment_status == 'unpaid' %}
+  <div class="row bold"><span class="label">Status</span><span class="val">UNPAID</span></div>
   {% endif %}
 
   <div class="divider"></div>
 
   <!-- Footer -->
   <div class="center">
-    {% if receipt_footer %}
     <div class="footer-text bold">{{ receipt_footer }}</div>
-    {% else %}
-    <div class="footer-text bold">Thank you for dining with us!</div>
-    {% endif %}
     <div class="footer-text">Please visit again 🙏</div>
-    <div class="divider"></div>
-    <div class="footer-text">IRD Certified Bill — Please keep this receipt</div>
-    {% if bill.print_count and bill.print_count > 1 %}
-    <div class="footer-text bold" style="color:#dc2626">REPRINT #{{ bill.print_count }}</div>
-    {% endif %}
   </div>
 
 </div>
 
-<button class="print-btn" onclick="window.print()">🖨 Print Receipt</button>
+<div class="actions">
+  <button class="btn btn-light" onclick="window.close()">Close</button>
+  <button class="btn btn-primary" id="print-btn" onclick="printReceipt()">🖨 Print Receipt</button>
+</div>
 
 <script>
-  // Auto-open print dialog if ?autoprint=1 is in URL
+  // Every physical print is recorded (IRD): the next render shows "COPY OF ORIGINAL".
+  async function printReceipt() {
+    const btn = document.getElementById('print-btn');
+    btn.disabled = true;
+    try {
+      await fetch('/api/billing/bills/{{ bill.id }}/print', { method: 'PATCH', credentials: 'same-origin' });
+    } catch (_) { /* print anyway */ }
+    const url = new URL(window.location.href);
+    url.searchParams.set('autoprint', '1');
+    window.location.replace(url.toString());
+  }
   if (new URLSearchParams(window.location.search).get('autoprint') === '1') {
-    window.onload = () => setTimeout(() => window.print(), 400);
+    window.onload = () => setTimeout(() => window.print(), 300);
   }
 </script>
 </body>

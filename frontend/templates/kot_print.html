@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KOT #{{ kot_number }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px; color: #000; background: #f0f0f0;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px;
+  }
+  .slip { background: #fff; width: 300px; padding: 12px; border: 1px solid #ccc; }
+  .center { text-align: center; }
+  .big { font-size: 22px; font-weight: bold; }
+  .where { font-size: 18px; font-weight: bold; margin-top: 2px; }
+  .divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .divider-solid { border-top: 2px solid #000; margin: 6px 0; }
+  .meta { display: flex; justify-content: space-between; font-size: 12px; }
+  .item { display: flex; gap: 8px; font-size: 17px; font-weight: bold; margin: 5px 0; }
+  .item .qty { min-width: 34px; text-align: right; }
+  .note { font-size: 13px; margin: -2px 0 6px 42px; font-style: italic; }
+  .actions { display: flex; gap: 8px; }
+  .btn { padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
+         font-family: system-ui, sans-serif; background: #1d4ed8; color: #fff; }
+  @media print {
+    body { background: #fff; padding: 0; display: block; }
+    .slip { width: 100%; border: none; padding: 2px; page-break-after: always; }
+    .slip:last-of-type { page-break-after: auto; }
+    .actions { display: none; }
+    @page { size: 80mm auto; margin: 3mm 2mm; }
+  }
+</style>
+</head>
+<body>
+{% for station, items in slips.items() %}
+<div class="slip">
+  <div class="center">
+    <div class="big">{{ 'BOT' if station == 'bar' else 'KOT' }} #{{ kot_number }}</div>
+    <div class="where">
+      {% if table_number %}TABLE {{ table_number }}{% else %}{{ order.order_type.replace('_', ' ').upper() }}{% endif %}
+    </div>
+    {% if slips|length > 1 %}<div style="font-size:12px">{{ station.upper() }}</div>{% endif %}
+  </div>
+  <div class="divider-solid"></div>
+  <div class="meta"><span>Order #{{ order.id }}</span><span>{{ sent_at }}</span></div>
+  {% if waiter_name %}<div class="meta"><span>Waiter: {{ waiter_name }}</span>{% if order.guests %}<span>{{ order.guests }} pax</span>{% endif %}</div>{% endif %}
+  {% if order.customer_name and not table_number %}<div class="meta"><span>{{ order.customer_name }}</span><span>{{ order.customer_phone or '' }}</span></div>{% endif %}
+  <div class="divider"></div>
+  {% for item in items %}
+  <div class="item"><span class="qty">{{ item.quantity }} ×</span><span>{{ item.name }}</span></div>
+  {% if item.notes %}<div class="note">** {{ item.notes }} **</div>{% endif %}
+  {% endfor %}
+  {% if order.notes %}
+  <div class="divider"></div>
+  <div style="font-size:13px"><b>NOTE:</b> {{ order.notes }}</div>
+  {% endif %}
+  <div class="divider-solid"></div>
+</div>
+{% endfor %}
+
+<div class="actions">
+  <button class="btn" onclick="window.print()">🖨 Print KOT</button>
+</div>
+<script>
+  if (new URLSearchParams(window.location.search).get('autoprint') === '1') {
+    window.onload = () => setTimeout(() => window.print(), 200);
+  }
+</script>
+</body>
+</html>

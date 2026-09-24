@@ -4,817 +4,282 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Floor Plan — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-<!-- ── Top Nav ── -->
-<nav class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between shadow">
-  <div class="flex items-center gap-3">
-    <a href="/dashboard" class="text-gray-400 hover:text-white text-sm">🍽️</a>
-    <span class="text-gray-600">|</span>
-    <span class="font-bold">Floor Plan</span>
-    <div class="hidden md:flex items-center gap-1 ml-2">
-      <a href="/orders"  class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700">Orders</a>
-      <a href="/kitchen" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700">Kitchen</a>
-      <a href="/billing" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700">Billing</a>
-    </div>
+<div id="pos-nav"></div>
+
+<!-- Toolbar -->
+<div class="bg-white border-b shadow-sm sticky top-14 z-30">
+  <div class="px-3 sm:px-4 py-2 flex flex-wrap items-center gap-2">
+    <div id="floor-tabs" class="flex gap-1 overflow-x-auto"></div>
+    <div class="flex-1"></div>
+    <div id="legend" class="hidden sm:flex items-center gap-3 text-sm text-gray-600 mr-2"></div>
+    <a href="/orders?type=takeaway" class="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800">🥡 Takeaway</a>
+    <a href="/orders?type=delivery" class="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800">🛵 Delivery</a>
+    <a href="/reservations" class="px-3 py-2 rounded-lg bg-amber-100 text-amber-900 text-sm font-semibold hover:bg-amber-200">
+      📅 Bookings <span id="bookings-count" class="hidden bg-amber-500 text-white rounded-full px-1.5 text-xs ml-0.5"></span></a>
+    <button id="btn-edit" onclick="toggleEdit()" class="hidden px-3 py-2 rounded-lg border text-sm font-medium hover:bg-gray-50">✏️ Edit tables</button>
   </div>
-  <div class="flex items-center gap-3">
-    <span id="nav-user" class="text-sm text-gray-300 hidden sm:block"></span>
-    <button id="btn-add-table" onclick="openAddTableModal()"
-      class="hidden bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-sm font-medium">
-      + Add Table
-    </button>
-  </div>
-</nav>
-
-<!-- ── Floor Tabs ── -->
-<div class="bg-white border-b px-4 flex shadow-sm">
-  <button onclick="setFloor('all')" data-floor="all"
-    class="floor-tab px-5 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600">All Floors</button>
-  <button onclick="setFloor('Ground')" data-floor="Ground"
-    class="floor-tab px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-800">Ground</button>
-  <button onclick="setFloor('First')" data-floor="First"
-    class="floor-tab px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-800">First Floor</button>
-  <button onclick="setFloor('Rooftop')" data-floor="Rooftop"
-    class="floor-tab px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-800">Rooftop</button>
-</div>
-
-<!-- ── Stats Bar ── -->
-<div class="bg-white border-b px-6 py-2 flex items-center gap-5 text-sm">
-  <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-green-500 inline-block"></span>Free</span>
-  <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-red-500 inline-block"></span>Occupied</span>
-  <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-yellow-400 inline-block"></span>Reserved</span>
-  <span class="ml-auto text-gray-500 text-xs" id="stats-bar">Loading…</span>
-  <button onclick="loadTables()" class="text-xs text-blue-600 hover:underline ml-1">↻ Refresh</button>
-</div>
-
-<!-- ── Floor Grid ── -->
-<div class="p-6">
-  <div class="relative bg-white rounded-xl shadow border min-h-[520px] p-4">
-    <div id="tables-grid" class="grid gap-4"
-      style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
-    </div>
-    <div id="empty-state" class="hidden absolute inset-0 flex items-center justify-center text-gray-400">
-      <div class="text-center">
-        <p class="text-lg font-medium">No tables on this floor</p>
-        <p class="text-sm">Click <strong>+ Add Table</strong> to create one</p>
-      </div>
-    </div>
+  <div id="edit-banner" class="hidden bg-blue-50 border-t border-blue-100 px-4 py-2 text-sm text-blue-800 flex items-center gap-3">
+    <span>Edit mode — tap a table to change it.</span>
+    <button onclick="openTableForm()" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold">+ Add table</button>
+    <button onclick="toggleEdit()" class="ml-auto underline">Done</button>
   </div>
 </div>
 
-<!-- ═══════════ TABLE ACTION MODAL ═══════════ -->
-<div id="action-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
-       style="max-height:92vh">
-
-    <!-- Header -->
-    <div class="px-5 py-4 border-b flex items-start justify-between flex-shrink-0">
-      <div>
-        <div class="flex items-center gap-2 flex-wrap">
-          <h2 id="modal-title" class="text-xl font-bold text-gray-900"></h2>
-          <span id="modal-status-badge" class="px-2 py-0.5 rounded-full text-xs font-semibold"></span>
-        </div>
-        <p id="modal-subtitle" class="text-sm text-gray-500 mt-0.5"></p>
-      </div>
-      <div class="flex items-center gap-2 ml-4 flex-shrink-0">
-        <button id="btn-edit-table" onclick="openEditFromAction()" title="Edit table"
-          class="hidden text-gray-400 hover:text-gray-700 text-sm px-2 py-1 rounded hover:bg-gray-100">✏️ Edit</button>
-        <button onclick="closeActionModal()"
-          class="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
-      </div>
-    </div>
-
-    <!-- Scrollable body -->
-    <div id="modal-body" class="flex-1 overflow-y-auto min-h-0"></div>
-
+<main class="p-3 sm:p-4 space-y-5">
+  <div id="tables-grid" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));"></div>
+  <div id="empty" class="hidden text-center py-20 text-gray-500">
+    <div class="text-5xl mb-3">🪑</div>
+    <p class="font-semibold">No tables yet</p>
+    <p class="text-sm mt-1" id="empty-hint">Ask an admin to add tables — or take a takeaway order.</p>
   </div>
-</div>
 
-<!-- ═══════════ ADD TABLE MODAL (Admin) ═══════════ -->
-<div id="add-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-  <div class="bg-white rounded-xl shadow-2xl w-80 p-6">
-    <h2 class="text-lg font-bold mb-4">Add New Table</h2>
-    <form id="add-form" onsubmit="submitAddTable(event)" class="space-y-3">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Table Number</label>
-        <input id="f-number" type="text" placeholder="T1, VIP-1…" required
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
-        <input id="f-capacity" type="number" min="1" max="20" value="4" required
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Floor</label>
-        <select id="f-floor"
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="Ground">Ground Floor</option>
-          <option value="First">First Floor</option>
-          <option value="Rooftop">Rooftop</option>
-        </select>
-      </div>
-      <div id="add-error" class="hidden text-red-600 text-xs bg-red-50 rounded p-2"></div>
-      <div class="flex gap-3 pt-1">
-        <button type="button" onclick="closeAddModal()"
-          class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">Cancel</button>
-        <button type="submit"
-          class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">Add</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- ═══════════ EDIT TABLE MODAL (Admin) ═══════════ -->
-<div id="edit-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-  <div class="bg-white rounded-xl shadow-2xl w-80 p-6">
-    <h2 class="text-lg font-bold mb-4">Edit Table</h2>
-    <div class="space-y-3">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Table Number</label>
-        <input id="e-number" type="text"
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
-        <input id="e-capacity" type="number" min="1"
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Floor</label>
-        <select id="e-floor"
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="Ground">Ground Floor</option>
-          <option value="First">First Floor</option>
-          <option value="Rooftop">Rooftop</option>
-        </select>
-      </div>
-      <div id="edit-error" class="hidden text-red-600 text-xs bg-red-50 rounded p-2"></div>
-      <div class="flex gap-2 pt-1">
-        <button onclick="deleteTable()"
-          class="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50">Delete</button>
-        <button onclick="closeEditModal()"
-          class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">Cancel</button>
-        <button onclick="saveTableEdits()"
-          class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">Save</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Toast -->
-<div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl text-sm
-     font-medium shadow-lg z-[100] text-white transition-opacity duration-300"></div>
+  <section id="open-orders-wrap" class="hidden">
+    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">Takeaway & delivery in progress</h2>
+    <div id="open-orders" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));"></div>
+  </section>
+</main>
 
 <script>
-// ── State ────────────────────────────────────────────────────────────────────
-let allTables    = [];
-let allMenu      = [];
-let categories   = [];
-let activeFloor  = 'all';
-let selectedTableId = null;
-let currentOrder = null;
-let currentBills = [];
-let currentTab   = 'order';
-let currentMenuCat = 'all';
-let userRole     = null;
-let editingTableId = null;
-const token = localStorage.getItem('token');
-if (!token) window.location.href = '/login';
+const { api, esc, money, toast, fail } = POS;
+const ME = POS.user();
+const IS_ADMIN = ['admin', 'superadmin'].includes(ME.role);
+let DATA = { tables: [], floors: [], open_orders: [], counts: {} };
+let floor = localStorage.getItem('pos.floor') || 'all';
+let editMode = false;
 
-// ── API helper ───────────────────────────────────────────────────────────────
-async function api(path, opts = {}) {
-  return fetch(path, {
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers||{}) },
-    ...opts,
-  });
-}
-
-// ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
-  await loadUser();
-  await Promise.all([loadTables(), loadMenu()]);
-  setInterval(loadTables, 30000);
+  if (!POS.guard(['admin', 'cashier', 'waiter', 'superadmin'])) return;
+  POS.nav('/tables');
+  if (IS_ADMIN) document.getElementById('btn-edit').classList.remove('hidden');
+  showFlash();
+  await load();
+  setInterval(() => { if (!document.hidden) load(); }, 10000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  document.addEventListener('pos:served', load);
 }
 
-async function loadUser() {
-  const res = await api('/api/auth/me');
-  if (!res.ok) { window.location.href = '/login'; return; }
-  const u = await res.json();
-  userRole = u.role;
-  document.getElementById('nav-user').textContent = `${u.full_name} (${u.role})`;
-  if (['admin','superadmin'].includes(userRole))
-    document.getElementById('btn-add-table').classList.remove('hidden');
+function showFlash() {
+  const raw = sessionStorage.getItem('pos.flash');
+  if (!raw) return;
+  sessionStorage.removeItem('pos.flash');
+  try {
+    const f = JSON.parse(raw);
+    if (f.kot && f.autoPrint) POS.printKot(f.kot[0], f.kot[1]);
+    toast(f.message, f.kot && !f.autoPrint && !f.thermal
+      ? { action: { label: 'Print KOT', fn: () => POS.printKot(f.kot[0], f.kot[1]) } } : {});
+  } catch { /* ignore */ }
 }
 
-async function loadMenu() {
-  const [cRes, mRes] = await Promise.all([
-    api('/api/menu/categories'),
-    api('/api/menu/items'),
-  ]);
-  if (cRes.ok) categories = (await cRes.json()).filter(c => c.is_active);
-  if (mRes.ok) allMenu   = (await mRes.json()).filter(m => m.is_available);
+async function load() {
+  try {
+    DATA = await api('/api/tables/overview');
+  } catch (e) { fail(e); return; }
+  if (floor !== 'all' && !DATA.floors.includes(floor)) floor = 'all';
+  render();
 }
 
-// ── Floor Plan ───────────────────────────────────────────────────────────────
-async function loadTables() {
-  const res = await api('/api/tables');
-  if (!res.ok) return;
-  allTables = await res.json();
-  renderTables();
-  // Refresh modal header if open
-  if (selectedTableId) {
-    const t = allTables.find(x => x.id === selectedTableId);
-    if (t) updateModalHeader(t);
-  }
-}
+function render() {
+  // Floor tabs (only when there is more than one floor)
+  const tabs = document.getElementById('floor-tabs');
+  tabs.innerHTML = DATA.floors.length > 1
+    ? ['all', ...DATA.floors].map((f, i) => `<button onclick="setFloorIdx(${i})"
+        class="px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${floor === f ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
+        ${f === 'all' ? 'All floors' : esc(f)}</button>`).join('')
+    : '<span class="font-bold text-gray-800 px-1">Floor plan</span>';
 
-function setFloor(floor) {
-  activeFloor = floor;
-  document.querySelectorAll('.floor-tab').forEach(btn => {
-    const on = btn.dataset.floor === floor;
-    btn.classList.toggle('border-blue-600', on);
-    btn.classList.toggle('text-blue-600', on);
-    btn.classList.toggle('border-transparent', !on);
-    btn.classList.toggle('text-gray-500', !on);
-  });
-  renderTables();
-}
+  const c = DATA.counts;
+  document.getElementById('legend').innerHTML = `
+    <span class="flex items-center gap-1.5">${tableIcon(false, 'h-5 w-auto text-green-600')}${c.free || 0} free</span>
+    <span class="flex items-center gap-1.5">${tableIcon(true, 'h-5 w-auto text-red-600')}${c.occupied || 0} busy</span>
+    <span class="flex items-center gap-1.5">${tableIcon(false, 'h-5 w-auto text-amber-500')}${c.reserved || 0} booked</span>`;
+  const bc = document.getElementById('bookings-count');
+  bc.textContent = DATA.bookings_today;
+  bc.classList.toggle('hidden', !DATA.bookings_today);
 
-function renderTables() {
-  const filtered = activeFloor === 'all' ? allTables
-    : allTables.filter(t => t.floor === activeFloor);
-  const grid  = document.getElementById('tables-grid');
-  const empty = document.getElementById('empty-state');
-  if (filtered.length === 0) { grid.innerHTML = ''; empty.classList.remove('hidden'); }
-  else { empty.classList.add('hidden'); grid.innerHTML = filtered.map(tableCard).join(''); }
-  const free = filtered.filter(t => t.status === 'free').length;
-  const occ  = filtered.filter(t => t.status === 'occupied').length;
-  const res  = filtered.filter(t => t.status === 'reserved').length;
-  document.getElementById('stats-bar').textContent =
-    `${filtered.length} tables — ${free} free · ${occ} occupied · ${res} reserved`;
-}
+  const tables = DATA.tables.filter(t => floor === 'all' || t.floor === floor);
+  document.getElementById('tables-grid').innerHTML = tables.map(card).join('');
+  document.getElementById('empty').classList.toggle('hidden', DATA.tables.length > 0);
+  if (IS_ADMIN) document.getElementById('empty-hint').innerHTML =
+    'Click <b>✏️ Edit tables</b> above, then <b>+ Add table</b>.';
 
-function statusColorClass(s) {
-  if (s === 'occupied') return 'bg-red-500 hover:bg-red-600 border-red-600';
-  if (s === 'reserved') return 'bg-yellow-400 hover:bg-yellow-500 border-yellow-500';
-  return 'bg-green-500 hover:bg-green-600 border-green-600';
-}
-
-function tableCard(t) {
-  const isAdmin = ['admin','superadmin'].includes(userRole);
-  const editBtn = isAdmin
-    ? `<button onclick="event.stopPropagation();openEditTableModal(${t.id})"
-         class="absolute top-1 right-1 text-white/60 hover:text-white text-xs px-1 py-0.5 rounded"
-         title="Edit table">✏</button>` : '';
-  const label = t.status === 'occupied' ? 'Occupied' : t.status === 'reserved' ? 'Reserved' : 'Free';
-  return `
-    <div onclick="openTablePanel(${t.id})"
-      class="relative cursor-pointer rounded-xl border-2 ${statusColorClass(t.status)}
-             text-white shadow-md p-4 flex flex-col items-center gap-1 min-h-[110px]
-             justify-center transition-transform hover:scale-105 select-none">
-      ${editBtn}
-      <span class="text-2xl font-bold leading-tight">${t.table_number}</span>
-      <span class="text-xs opacity-90">${t.capacity} seats</span>
-      <span class="text-xs font-semibold mt-1 bg-black/20 px-2 py-0.5 rounded-full">${label}</span>
-      <span class="text-xs opacity-70">${t.floor || ''}</span>
-    </div>`;
-}
-
-// ── Table Action Modal ────────────────────────────────────────────────────────
-async function openTablePanel(tableId) {
-  selectedTableId = tableId;
-  const table = allTables.find(t => t.id === tableId);
-  if (!table) return;
-
-  document.getElementById('action-modal').classList.remove('hidden');
-  updateModalHeader(table);
-  document.getElementById('modal-body').innerHTML = spinnerHTML();
-  document.getElementById('btn-edit-table').classList.toggle(
-    'hidden', !['admin','superadmin'].includes(userRole));
-
-  const [orderRes, billsRes] = await Promise.all([
-    api(`/api/tables/${tableId}/active-order`),
-    api(`/api/tables/${tableId}/outstanding-bills`),
-  ]);
-
-  currentOrder = null;
-  currentBills = [];
-
-  if (orderRes.ok) {
-    const d = await orderRes.json();
-    currentOrder = d;           // null = no active order
-  }
-  if (billsRes.ok) currentBills = await billsRes.json();
-
-  if (currentOrder) renderOccupiedPanel(table);
-  else              renderFreePanel(table);
-}
-
-function updateModalHeader(table) {
-  document.getElementById('modal-title').textContent = `Table ${table.table_number}`;
-  document.getElementById('modal-subtitle').textContent =
-    `${table.capacity} seats · ${table.floor || 'Ground'} Floor`;
-  const badge = document.getElementById('modal-status-badge');
-  const cfg = {
-    occupied: ['bg-red-100 text-red-700',    'Occupied'],
-    reserved: ['bg-yellow-100 text-yellow-700', 'Reserved'],
-    free:     ['bg-green-100 text-green-700',  'Free'],
-  }[table.status] || ['bg-gray-100 text-gray-700', table.status];
-  badge.className = `px-2 py-0.5 rounded-full text-xs font-semibold ${cfg[0]}`;
-  badge.textContent = cfg[1];
-}
-
-function closeActionModal() {
-  document.getElementById('action-modal').classList.add('hidden');
-  selectedTableId = null; currentOrder = null; currentBills = [];
-}
-
-// ── FREE Table Panel ──────────────────────────────────────────────────────────
-function renderFreePanel(table) {
-  const isAdmin = ['admin','superadmin'].includes(userRole);
-  document.getElementById('modal-body').innerHTML = `
-    <div class="p-5 space-y-5">
-
-      <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-        <div class="text-3xl mb-1">🪑</div>
-        <p class="font-semibold text-green-800">Table is Free</p>
-        <p class="text-sm text-green-600">Ready to take a new order</p>
+  const oo = DATA.open_orders;
+  document.getElementById('open-orders-wrap').classList.toggle('hidden', !oo.length);
+  document.getElementById('open-orders').innerHTML = oo.map(o => `
+    <a href="/orders?order_id=${o.id}" class="bg-white rounded-xl shadow-sm border-l-4 ${o.order_type === 'delivery' ? 'border-purple-500' : 'border-blue-500'} p-3 hover:shadow-md transition block">
+      <div class="flex items-center justify-between">
+        <span class="font-bold">${o.order_type === 'delivery' ? '🛵' : '🥡'} #${o.id}</span>
+        <span class="text-xs text-gray-500">${POS.duration(o.minutes_open)}</span>
       </div>
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Customer Name <span class="text-gray-400 font-normal">(optional)</span>
-          </label>
-          <input id="take-customer" type="text" placeholder="Guest name…"
-            class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Order Type</label>
-          <div class="flex gap-2">
-            ${['dine_in','takeaway','delivery'].map((v,i) => {
-              const labels = ['🍽️ Dine In','🥡 Takeaway','🛵 Delivery'];
-              return `<label class="flex-1 cursor-pointer">
-                <input type="radio" name="order-type" value="${v}" ${i===0?'checked':''} class="sr-only peer" />
-                <div class="text-center py-2 px-1 rounded-lg border-2 text-xs font-medium border-transparent
-                     bg-gray-100 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700
-                     hover:bg-gray-200 transition-all">${labels[i]}</div>
-              </label>`;
-            }).join('')}
-          </div>
-        </div>
+      <div class="text-sm text-gray-700 truncate">${esc(o.customer_name || POS.label(o.order_type))}</div>
+      <div class="flex items-center justify-between mt-1">
+        <span class="font-semibold text-sm">${money(o.estimated_total)}</span>
+        ${badges(o)}
       </div>
-
-      <div id="take-error" class="hidden text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2"></div>
-
-      <button onclick="takeOrder(${table.id})"
-        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-base transition-colors">
-        Take Order
-      </button>
-
-      ${isAdmin ? `
-      <div class="border-t pt-4">
-        <p class="text-xs text-gray-400 mb-2 uppercase tracking-wide font-medium">Admin</p>
-        <button onclick="changeTableStatus('reserved')"
-          class="w-full py-2 text-sm rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100">
-          Mark as Reserved
-        </button>
-      </div>` : ''}
-    </div>`;
+    </a>`).join('');
 }
 
-// ── OCCUPIED Table Panel ──────────────────────────────────────────────────────
-function renderOccupiedPanel(table) {
-  currentTab = 'order';
-  currentMenuCat = 'all';
-  const pendingCount = pendingItems().length;
-  const billBadge = currentBills.length
-    ? `<span class="ml-1 bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full">${currentBills.length}</span>` : '';
+function badges(o) {
+  return `<span class="flex flex-wrap gap-1">
+    ${o.ready ? `<span class="text-[11px] font-bold bg-green-500 text-white rounded-full px-2 py-0.5 animate-pulse">🔔 ${o.ready} ready</span>` : ''}
+    ${o.awaiting_accept ? `<span class="text-[11px] font-bold bg-yellow-100 text-yellow-800 rounded-full px-2 py-0.5">⏳ ${o.awaiting_accept} to accept</span>` : ''}
+    ${o.pending ? `<span class="text-[11px] font-bold bg-orange-100 text-orange-800 rounded-full px-2 py-0.5">${o.pending} not sent</span>` : ''}
+  </span>`;
+}
 
-  document.getElementById('modal-body').innerHTML = `
-    <!-- Order info bar -->
-    <div class="px-5 py-2 bg-gray-50 border-b text-sm text-gray-600 flex items-center justify-between flex-shrink-0">
-      <span>Order <strong>#${currentOrder.id}</strong> · ${currentOrder.order_type.replace('_',' ')}</span>
-      <span class="text-xs text-gray-400">${fmtTime(currentOrder.created_at)}</span>
+// ── Table icon: a table with two chairs; guests sit in them when it's occupied ──
+// Drawn in a 1200-unit square as round-capped lines (like a line icon font).
+const ICON_TABLE = `
+  <path d="M384 528H816L886 1004Q792 1050 696 1020Q600 1050 504 1020Q408 1050 314 1004Z"/>
+  <path d="M504 866V1020M696 912V1020"/>`;
+const ICON_CHAIRS = `
+  <path d="M72 408V745C72 783 104 815 144 815H318M118 822L96 1030"/>
+  <path d="M1128 408V745C1128 783 1096 815 1056 815H882M1082 822L1104 1030"/>`;
+const ICON_GUESTS = `
+  <circle cx="216" cy="240" r="72"/><circle cx="984" cy="240" r="72"/>
+  <path d="M345 648H288V460C288 420 260 384 216 384C176 384 144 416 144 455V672C144 712 176 744 216 744H330"/>
+  <path d="M855 648H912V460C912 420 940 384 984 384C1024 384 1056 416 1056 455V672C1056 712 1024 744 984 744H870"/>`;
+
+function tableIcon(withGuests, cls) {
+  return `<svg viewBox="24 144 1152 910" class="${cls}" fill="none" stroke="currentColor" stroke-width="48"
+      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    ${ICON_TABLE}${ICON_CHAIRS}${withGuests ? ICON_GUESTS : ''}</svg>`;
+}
+
+function card(t) {
+  const o = t.order, r = t.reservation;
+  const base = 'relative text-left rounded-2xl p-3 flex flex-col shadow-sm border-2 transition active:scale-[.98] hover:shadow-md';
+  const icon = (guests, color) => `<div class="flex justify-center my-1.5">${tableIcon(guests, `h-16 w-auto ${color}`)}</div>`;
+  if (t.status === 'occupied') {
+    const late = o.minutes_open >= 90;
+    return `<button onclick="tapTable(${t.id})" class="${base} bg-red-50 border-red-400" aria-label="Table ${esc(t.table_number)}, occupied">
+      <div class="flex items-start justify-between">
+        <span class="text-xl font-extrabold text-red-700">${esc(t.table_number)}</span>
+        <span class="text-xs font-semibold ${late ? 'text-red-600' : 'text-gray-500'}">⏱ ${POS.duration(o.minutes_open)}</span>
+      </div>
+      ${icon(true, 'text-red-600')}
+      <div class="font-bold text-gray-900 text-sm">${money(o.estimated_total)}</div>
+      <div class="text-xs text-gray-600 truncate">👥 ${o.guests || '–'}/${t.capacity}${o.waiter_name ? ' · ' + esc(o.waiter_name.split(' ')[0]) : ''}</div>
+      <div class="mt-1 min-h-[20px]">${badges(o)}${o.bill_open ? '<span class="text-[11px] font-bold bg-purple-100 text-purple-800 rounded-full px-2 py-0.5">🧾 bill issued</span>' : ''}</div>
+    </button>`;
+  }
+  if (t.status === 'reserved') {
+    return `<button onclick="tapTable(${t.id})" class="${base} bg-amber-50 border-amber-400" aria-label="Table ${esc(t.table_number)}, booked">
+      <div class="flex items-start justify-between">
+        <span class="text-xl font-extrabold text-amber-800">${esc(t.table_number)}</span>
+        <span class="text-xs font-bold text-amber-800 bg-amber-200 rounded-full px-2 py-0.5">Booked</span>
+      </div>
+      ${icon(false, 'text-amber-500')}
+      ${r ? `<div class="text-sm font-semibold text-gray-800 truncate">${esc(r.customer_name)}</div>
+             <div class="text-xs text-gray-600">🕒 ${POS.time(r.reserved_for)} · 👥 ${r.party_size}</div>`
+          : '<div class="text-xs text-gray-600">Held by staff</div>'}
+    </button>`;
+  }
+  return `<button onclick="tapTable(${t.id})" class="${base} bg-white border-green-300 hover:border-green-500" aria-label="Table ${esc(t.table_number)}, free">
+    <div class="flex items-start justify-between">
+      <span class="text-xl font-extrabold text-gray-800">${esc(t.table_number)}</span>
+      <span class="text-xs text-gray-500">${t.capacity} seats</span>
     </div>
-
-    <!-- Tabs -->
-    <div class="flex border-b bg-white flex-shrink-0">
-      <button onclick="switchTab('order')" data-tab="order"
-        class="tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600">📋 Order</button>
-      <button onclick="switchTab('add')" data-tab="add"
-        class="tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">＋ Add Items</button>
-      <button onclick="switchTab('bills')" data-tab="bills"
-        class="tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">🧾 Bills${billBadge}</button>
-    </div>
-
-    <!-- Tab content area -->
-    <div id="tab-content" class="overflow-y-auto" style="max-height:340px"></div>
-
-    <!-- Footer -->
-    <div class="border-t px-4 py-3 flex gap-2 bg-white flex-shrink-0">
-      <button onclick="sendKOT()" id="btn-send-kot"
-        class="${pendingCount > 0
-          ? 'flex-1 bg-orange-500 hover:bg-orange-600 text-white'
-          : 'flex-1 bg-gray-100 text-gray-400 cursor-not-allowed'}
-          font-semibold py-2.5 rounded-lg text-sm transition-colors"
-        ${pendingCount === 0 ? 'disabled' : ''}>
-        🔔 KOT${pendingCount > 0 ? ` (${pendingCount})` : ''}
-      </button>
-      <button onclick="goToBilling()"
-        class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 rounded-lg text-sm">
-        🧾 Billing
-      </button>
-      <button onclick="confirmCancel()"
-        class="px-3 py-2.5 text-red-600 border border-red-200 rounded-lg text-sm hover:bg-red-50">
-        ✕ Cancel
-      </button>
-    </div>`;
-
-  switchTab('order');
+    ${icon(false, 'text-green-600')}
+    <div class="text-sm font-semibold text-green-700">Free — tap to order</div>
+    ${DATA.floors.length > 1 && floor === 'all' ? `<div class="text-xs text-gray-400">${esc(t.floor)}</div>` : ''}
+  </button>`;
 }
 
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    const on = btn.dataset.tab === tab;
-    btn.classList.toggle('border-blue-600', on);
-    btn.classList.toggle('text-blue-600', on);
-    btn.classList.toggle('border-transparent', !on);
-    btn.classList.toggle('text-gray-500', !on);
-  });
-  const el = document.getElementById('tab-content');
-  if (!el) return;
-  if (tab === 'order') renderOrderTab(el);
-  else if (tab === 'add') renderAddItemsTab(el);
-  else renderBillsTab(el);
+function setFloorIdx(i) {
+  const f = ['all', ...DATA.floors][i] || 'all';
+  floor = f;
+  localStorage.setItem('pos.floor', f);
+  render();
 }
 
-// ── Order Tab ─────────────────────────────────────────────────────────────────
-function renderOrderTab(container) {
-  if (!currentOrder || currentOrder.items.length === 0) {
-    container.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-10 text-gray-400">
-        <div class="text-4xl mb-2">📭</div>
-        <p class="text-sm">No items yet.</p>
-        <button onclick="switchTab('add')" class="mt-3 text-blue-600 text-sm hover:underline">+ Add Items</button>
-      </div>`;
-    return;
-  }
-
-  const sent    = currentOrder.items.filter(i => i.kot_status !== 'pending');
-  const pending = currentOrder.items.filter(i => i.kot_status === 'pending');
-  let html = '<div class="divide-y">';
-
-  if (sent.length) {
-    html += `<div class="px-4 py-1.5 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-               Sent to Kitchen</div>`;
-    sent.forEach(item => { html += itemRow(item, false); });
-  }
-  if (pending.length) {
-    html += `<div class="px-4 py-1.5 bg-orange-50 text-xs font-semibold text-orange-600 uppercase tracking-wide">
-               ⏳ Pending — Not Sent Yet</div>`;
-    pending.forEach(item => { html += itemRow(item, true); });
-  }
-
-  html += `</div>
-    <div class="mx-4 my-3 p-3 bg-gray-50 rounded-lg flex items-center justify-between">
-      <div>
-        <p class="text-sm font-bold text-gray-800">Subtotal</p>
-        <p class="text-xs text-gray-400">VAT & service charge added at billing</p>
-      </div>
-      <span class="text-base font-bold text-gray-900">NPR ${currentOrder.subtotal.toFixed(2)}</span>
-    </div>`;
-  container.innerHTML = html;
-}
-
-function itemRow(item, canDelete) {
-  const badges = {
-    pending:   '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Pending</span>',
-    sent:      '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700">Sent</span>',
-    preparing: '<span class="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">Preparing</span>',
-    ready:     '<span class="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">Ready ✓</span>',
-    served:    '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Served</span>',
-  };
-  const delBtn = canDelete
-    ? `<button onclick="removeOrderItem(${item.id})"
-         class="ml-1 text-red-400 hover:text-red-600 text-xs" title="Remove">✕</button>` : '';
-  return `
-    <div class="flex items-center px-4 py-3 gap-3 hover:bg-gray-50">
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="text-sm font-medium text-gray-900">${item.name}</span>
-          ${badges[item.kot_status] || ''}
-        </div>
-        ${item.notes ? `<p class="text-xs text-gray-400 mt-0.5">${item.notes}</p>` : ''}
-      </div>
-      <div class="flex items-center gap-1 flex-shrink-0">
-        <span class="text-sm text-gray-500">×${item.quantity}</span>
-        <span class="text-sm font-semibold text-gray-900 w-20 text-right">NPR ${item.line_total.toFixed(2)}</span>
-        ${delBtn}
-      </div>
-    </div>`;
-}
-
-// ── Add Items Tab ─────────────────────────────────────────────────────────────
-function renderAddItemsTab(container) {
-  const items = currentMenuCat === 'all'
-    ? allMenu : allMenu.filter(m => m.category_id == currentMenuCat);
-
-  container.innerHTML = `
-    <div class="sticky top-0 bg-white border-b z-10">
-      <div class="flex gap-2 px-4 py-2 overflow-x-auto">
-        <button onclick="filterMenuCat('all')" data-cat="all"
-          class="cat-btn flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium
-          ${currentMenuCat==='all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-          All
-        </button>
-        ${categories.map(c => `
-          <button onclick="filterMenuCat(${c.id})" data-cat="${c.id}"
-            class="cat-btn flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium
-            ${currentMenuCat==c.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-            ${c.name}
-          </button>`).join('')}
-      </div>
-    </div>
-    <div class="divide-y">
-      ${items.length === 0
-        ? '<div class="py-8 text-center text-gray-400 text-sm">No items in this category</div>'
-        : items.map(item => `
-          <div class="flex items-center px-4 py-3 gap-3 hover:bg-gray-50">
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-gray-900">${item.name}</p>
-              <p class="text-xs text-gray-500">NPR ${Number(item.price).toFixed(2)}</p>
-            </div>
-            <button onclick="addItemToOrder(${item.id},'${item.name.replace(/'/g,"\\'")}',${item.price})"
-              class="w-9 h-9 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xl font-bold
-                     flex items-center justify-center flex-shrink-0 transition-colors leading-none">+</button>
-          </div>`).join('')}
-    </div>`;
-}
-
-function filterMenuCat(catId) {
-  currentMenuCat = catId;
-  const el = document.getElementById('tab-content');
-  if (el) renderAddItemsTab(el);
-}
-
-// ── Bills Tab ─────────────────────────────────────────────────────────────────
-function renderBillsTab(container) {
-  if (currentBills.length === 0) {
-    container.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-10 text-gray-400">
-        <div class="text-4xl mb-2">✅</div>
-        <p class="text-sm font-medium">No outstanding bills</p>
-        <button onclick="goToBilling()"
-          class="mt-3 bg-purple-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-purple-700">
-          Generate Bill →
-        </button>
-      </div>`;
-    return;
-  }
-  container.innerHTML = `<div class="p-4 space-y-3">` +
-    currentBills.map(b => `
-      <div class="border rounded-xl p-4 bg-orange-50 border-orange-200">
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-semibold text-gray-900 text-sm">${b.bill_number}</span>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-orange-200 text-orange-800 font-medium">Unpaid</span>
-        </div>
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-xs text-gray-500">Order #${b.order_id}</span>
-          <span class="text-lg font-bold text-gray-900">NPR ${Number(b.grand_total).toFixed(2)}</span>
-        </div>
-        <button onclick="goToBillingBill(${b.id})"
-          class="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm py-2 rounded-lg font-medium">
-          Process Payment →
-        </button>
-      </div>`).join('') + `</div>`;
-}
-
-// ── Order Actions ─────────────────────────────────────────────────────────────
-async function takeOrder(tableId) {
-  const customerName = (document.getElementById('take-customer').value || '').trim();
-  const orderType = document.querySelector('input[name="order-type"]:checked')?.value || 'dine_in';
-  const errEl = document.getElementById('take-error');
-  errEl.classList.add('hidden');
-
-  const res = await api('/api/orders', {
-    method: 'POST',
-    body: JSON.stringify({ table_id: tableId, order_type: orderType, customer_name: customerName || null }),
-  });
-  if (res.ok) {
-    currentOrder = await res.json();
-    await loadTables();
-    const table = allTables.find(t => t.id === tableId);
-    if (table) { updateModalHeader(table); renderOccupiedPanel(table); }
-  } else {
-    const d = await res.json();
-    errEl.textContent = d.detail || 'Failed to create order';
-    errEl.classList.remove('hidden');
-  }
-}
-
-async function addItemToOrder(menuItemId, name, price) {
-  if (!currentOrder) return;
-  const res = await api(`/api/orders/${currentOrder.id}/items`, {
-    method: 'POST',
-    body: JSON.stringify({ menu_item_id: menuItemId, quantity: 1 }),
-  });
-  if (res.ok) {
-    await refreshOrder();
-    showToast(`${name} added`);
-  } else {
-    const d = await res.json();
-    showToast(d.detail || 'Failed to add item', true);
-  }
-}
-
-async function removeOrderItem(itemId) {
-  if (!currentOrder) return;
-  const res = await api(`/api/orders/${currentOrder.id}/items/${itemId}`, { method: 'DELETE' });
-  if (res.ok || res.status === 204) {
-    await refreshOrder();
-    showToast('Item removed');
-  }
-}
-
-async function sendKOT() {
-  if (!currentOrder) return;
-  const btn = document.getElementById('btn-send-kot');
-  if (btn) btn.disabled = true;
-
-  const res = await api(`/api/orders/${currentOrder.id}/kot`, { method: 'POST' });
-  if (res.ok) {
-    const data = await res.json();
-    await refreshOrder();
-    showToast(`KOT #${data.kot_number} sent — ${data.items_sent} item(s)`);
-  } else {
-    const d = await res.json();
-    showToast(d.detail || 'Failed to send KOT', true);
-    if (btn) btn.disabled = false;
-  }
-}
-
-async function confirmCancel() {
-  if (!currentOrder) return;
-  if (currentBills.length > 0) {
-    showToast('Cannot cancel — outstanding bill exists. Process or void it first.', true);
-    return;
-  }
-  if (!confirm(`Cancel Order #${currentOrder.id}? This will free the table.`)) return;
-  const res = await api(`/api/orders/${currentOrder.id}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status: 'cancelled' }),
-  });
-  if (res.ok) {
-    showToast('Order cancelled — table freed');
-    await loadTables();
-    const table = allTables.find(t => t.id === selectedTableId);
-    currentOrder = null; currentBills = [];
-    if (table) { updateModalHeader(table); renderFreePanel(table); }
-  } else {
-    const d = await res.json();
-    showToast(d.detail || 'Failed to cancel', true);
-  }
-}
-
-function goToBilling() {
-  if (currentOrder) window.location.href = `/billing?order_id=${currentOrder.id}`;
-  else window.location.href = '/billing';
-}
-function goToBillingBill(billId) {
-  window.location.href = `/billing?bill_id=${billId}`;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function pendingItems() {
-  return currentOrder ? currentOrder.items.filter(i => i.kot_status === 'pending') : [];
-}
-
-async function refreshOrder() {
-  if (!currentOrder) return;
-  const res = await api(`/api/orders/${currentOrder.id}`);
-  if (!res.ok) return;
-  currentOrder = await res.json();
-  // Rebuild footer KOT button
-  const btn = document.getElementById('btn-send-kot');
-  const pc  = pendingItems().length;
-  if (btn) {
-    btn.textContent = `🔔 KOT${pc > 0 ? ` (${pc})` : ''}`;
-    btn.disabled    = pc === 0;
-    btn.className   = `${pc > 0
-      ? 'flex-1 bg-orange-500 hover:bg-orange-600 text-white'
-      : 'flex-1 bg-gray-100 text-gray-400 cursor-not-allowed'}
-      font-semibold py-2.5 rounded-lg text-sm transition-colors`;
-  }
-  // Re-render active tab
-  const el = document.getElementById('tab-content');
-  if (!el) return;
-  if (currentTab === 'order') renderOrderTab(el);
-  else if (currentTab === 'add') renderAddItemsTab(el);
-}
-
-function fmtTime(iso) {
-  if (!iso) return '';
-  try { return new Date(iso).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true}); }
-  catch { return ''; }
-}
-
-function spinnerHTML() {
-  return `<div class="flex items-center justify-center py-16 text-gray-400">
-    <div class="text-center">
-      <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-      <p class="text-sm">Loading…</p>
-    </div>
-  </div>`;
-}
-
-let toastTimer;
-function showToast(msg, isError = false) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl text-sm font-medium
-    shadow-lg z-[100] text-white transition-opacity duration-300 ${isError ? 'bg-red-600' : 'bg-gray-900'}`;
-  el.classList.remove('hidden');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
-}
-
-// ── Admin Table Management ────────────────────────────────────────────────────
-function openEditFromAction() {
-  if (selectedTableId) openEditTableModal(selectedTableId);
-}
-
-function openAddTableModal() {
-  document.getElementById('add-modal').classList.remove('hidden');
-  document.getElementById('add-error').classList.add('hidden');
-  document.getElementById('add-form').reset();
-}
-function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
-
-async function submitAddTable(e) {
-  e.preventDefault();
-  const errEl = document.getElementById('add-error');
-  errEl.classList.add('hidden');
-  const body = {
-    table_number: document.getElementById('f-number').value.trim(),
-    capacity:     parseInt(document.getElementById('f-capacity').value),
-    floor:        document.getElementById('f-floor').value,
-  };
-  const res = await api('/api/tables', { method: 'POST', body: JSON.stringify(body) });
-  if (res.ok) { closeAddModal(); loadTables(); }
-  else { const d = await res.json(); errEl.textContent = d.detail || 'Failed'; errEl.classList.remove('hidden'); }
-}
-
-function openEditTableModal(tableId) {
-  const t = allTables.find(x => x.id === tableId);
+async function tapTable(id) {
+  const t = DATA.tables.find(x => x.id === id);
   if (!t) return;
-  editingTableId = tableId;
-  document.getElementById('e-number').value   = t.table_number;
-  document.getElementById('e-capacity').value = t.capacity;
-  document.getElementById('e-floor').value    = t.floor || 'Ground';
-  document.getElementById('edit-error').classList.add('hidden');
-  document.getElementById('edit-modal').classList.remove('hidden');
-}
-function closeEditModal() {
-  document.getElementById('edit-modal').classList.add('hidden');
-  editingTableId = null;
-}
+  if (editMode) { openTableForm(t); return; }
+  if (t.status !== 'reserved') { location.href = `/orders?table_id=${id}`; return; }
 
-async function saveTableEdits() {
-  if (!editingTableId) return;
-  const body = {
-    table_number: document.getElementById('e-number').value.trim(),
-    capacity:     parseInt(document.getElementById('e-capacity').value),
-    floor:        document.getElementById('e-floor').value,
-  };
-  const res = await api(`/api/tables/${editingTableId}`, { method: 'PUT', body: JSON.stringify(body) });
-  if (res.ok) { closeEditModal(); loadTables(); }
-  else {
-    const d = await res.json();
-    const el = document.getElementById('edit-error');
-    el.textContent = d.detail || 'Failed'; el.classList.remove('hidden');
-  }
-}
-
-async function deleteTable() {
-  if (!editingTableId) return;
-  if (!confirm('Delete this table?')) return;
-  const res = await api(`/api/tables/${editingTableId}`, { method: 'DELETE' });
-  if (res.status === 204 || res.ok) { closeEditModal(); closeActionModal(); loadTables(); }
-}
-
-async function changeTableStatus(newStatus) {
-  if (!selectedTableId) return;
-  await api(`/api/tables/${selectedTableId}/status`, {
-    method: 'PATCH', body: JSON.stringify({ status: newStatus }),
+  const r = t.reservation;
+  const choice = await POS.modal(`
+    <h2 class="text-lg font-bold">Table ${esc(t.table_number)} is booked</h2>
+    ${r ? `<p class="text-gray-600 mt-1">${esc(r.customer_name)} · 👥 ${r.party_size} · ${POS.time(r.reserved_for)}</p>
+           ${r.customer_phone ? `<a href="tel:${esc(r.customer_phone)}" class="text-blue-700 text-sm">📞 ${esc(r.customer_phone)}</a>` : ''}
+           ${r.notes ? `<p class="text-sm text-amber-800 mt-1">📝 ${esc(r.notes)}</p>` : ''}`
+        : '<p class="text-gray-600 mt-1">This table was held by a staff member.</p>'}
+    <div class="grid gap-2 mt-5">
+      ${r ? '<button data-c="seat" class="py-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold">✓ Guests arrived — seat them</button>' : ''}
+      <button data-c="walkin" class="py-3 rounded-xl border font-semibold hover:bg-gray-50">${r ? 'Seat walk-in guests instead' : 'Take order'}</button>
+      ${!r ? '<button data-c="free" class="py-3 rounded-xl border font-semibold hover:bg-gray-50">Release table</button>' : ''}
+      <button data-c="close" class="py-3 rounded-xl text-gray-500">Close</button>
+    </div>`, {
+    onMount: (w, close) => w.querySelectorAll('[data-c]').forEach(b => b.onclick = () => close(b.dataset.c)),
   });
-  await loadTables();
-  closeActionModal();
+  try {
+    if (choice === 'seat') {
+      const res = await api(`/api/reservations/${r.id}/seat`, { method: 'POST', body: {} });
+      location.href = `/orders?order_id=${res.order.id}`;
+    } else if (choice === 'walkin') {
+      if (r && !(await POS.confirm(`${r.customer_name} is booked for ${POS.time(r.reserved_for)}. Seat walk-ins here anyway?`, { okText: 'Seat anyway' }))) return;
+      location.href = `/orders?table_id=${id}`;
+    } else if (choice === 'free') {
+      await api(`/api/tables/${id}/status`, { method: 'PATCH', body: { status: 'free' } });
+      load();
+    }
+  } catch (e) { fail(e); }
+}
+
+// ── Admin: add / edit tables ────────────────────────────────────────────────
+function toggleEdit() {
+  editMode = !editMode;
+  document.getElementById('edit-banner').classList.toggle('hidden', !editMode);
+  document.getElementById('edit-banner').classList.toggle('flex', editMode);
+  document.getElementById('btn-edit').textContent = editMode ? '✓ Done editing' : '✏️ Edit tables';
+}
+
+async function openTableForm(t = null) {
+  const floors = DATA.floors.length ? DATA.floors : ['Ground', 'First', 'Rooftop'];
+  const result = await POS.modal(`
+    <form class="space-y-3">
+      <h2 class="text-lg font-bold">${t ? 'Edit table ' + esc(t.table_number) : 'Add table'}</h2>
+      <label class="block text-sm font-medium text-gray-700">Table name / number
+        <input name="table_number" required value="${esc(t ? t.table_number : '')}" placeholder="T1, VIP-1…" class="mt-1 w-full border rounded-lg px-3 py-2.5"></label>
+      <label class="block text-sm font-medium text-gray-700">Seats
+        <input name="capacity" type="number" min="1" max="100" required value="${t ? t.capacity : 4}" class="mt-1 w-full border rounded-lg px-3 py-2.5"></label>
+      <label class="block text-sm font-medium text-gray-700">Floor / area
+        <input name="floor" list="floor-list" value="${esc(t ? t.floor : floors[0])}" class="mt-1 w-full border rounded-lg px-3 py-2.5">
+        <datalist id="floor-list">${floors.map(f => `<option value="${esc(f)}">`).join('')}</datalist></label>
+      <p data-err class="hidden text-sm text-red-600"></p>
+      <div class="flex gap-2 pt-1">
+        ${t ? '<button type="button" data-del class="px-4 py-3 rounded-xl border border-red-200 text-red-600 font-medium">Delete</button>' : ''}
+        <button type="button" data-x class="flex-1 py-3 rounded-xl border font-medium">Cancel</button>
+        <button class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold">Save</button>
+      </div>
+    </form>`, {
+    onMount: (w, close) => {
+      const err = w.querySelector('[data-err]');
+      w.querySelector('[data-x]').onclick = () => close(null);
+      const del = w.querySelector('[data-del]');
+      if (del) del.onclick = async () => {
+        if (!(await POS.confirm(`Delete table ${t.table_number}?`, { danger: true, okText: 'Delete' }))) return;
+        try { await api(`/api/tables/${t.id}`, { method: 'DELETE' }); close('saved'); }
+        catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+      };
+      w.querySelector('form').onsubmit = async e => {
+        e.preventDefault();
+        const f = Object.fromEntries(new FormData(e.target));
+        const body = { table_number: f.table_number.trim(), capacity: Number(f.capacity), floor: f.floor.trim() || 'Ground' };
+        try {
+          await api(t ? `/api/tables/${t.id}` : '/api/tables', { method: t ? 'PUT' : 'POST', body });
+          close('saved');
+        } catch (ex) { err.textContent = ex.message; err.classList.remove('hidden'); }
+      };
+    },
+  });
+  if (result === 'saved') { toast('Tables updated'); load(); }
 }
 
 init();

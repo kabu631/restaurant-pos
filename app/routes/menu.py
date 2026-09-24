@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.database import get_db
-from app.models.menu import Category, MenuItem
+from app.models.menu import STATIONS, Category, MenuItem
 from app.models.inventory import Ingredient
 from app.models.recipe import RecipeIngredient
 from app.models.user import User
@@ -19,11 +19,13 @@ class CategoryCreate(BaseModel):
     name: str
     display_order: int = 0
     is_active: bool = True
+    station: str = "kitchen"        # kitchen / bar / none (served without a ticket)
 
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
     display_order: Optional[int] = None
     is_active: Optional[bool] = None
+    station: Optional[str] = None
 
 class MenuItemCreate(BaseModel):
     category_id: int
@@ -50,6 +52,20 @@ class MenuItemUpdate(BaseModel):
     display_order: Optional[int] = None
 
 
+def _check_category(name: Optional[str], station: Optional[str]):
+    if name is not None and not name.strip():
+        raise HTTPException(status_code=400, detail="Category name is required")
+    if station is not None and station not in STATIONS:
+        raise HTTPException(status_code=400, detail=f"station must be one of {list(STATIONS)}")
+
+
+def _check_item(name: Optional[str], price: Optional[float]):
+    if name is not None and not name.strip():
+        raise HTTPException(status_code=400, detail="Item name is required")
+    if price is not None and price < 0:
+        raise HTTPException(status_code=400, detail="Price cannot be negative")
+
+
 # --- Category endpoints ---
 
 @router.get("/categories")
@@ -64,6 +80,8 @@ def list_categories(db: Session = Depends(get_db),
 @router.post("/categories", status_code=status.HTTP_201_CREATED)
 def create_category(body: CategoryCreate, db: Session = Depends(get_db),
                     current_user: User = Depends(require_admin)):
+    _check_category(body.name, body.station)
+    body.name = body.name.strip()
     cat = Category(**body.model_dump(), restaurant_id=current_user.restaurant_id)
     db.add(cat)
     db.commit()
@@ -74,6 +92,7 @@ def create_category(body: CategoryCreate, db: Session = Depends(get_db),
 @router.put("/categories/{cat_id}")
 def update_category(cat_id: int, body: CategoryUpdate, db: Session = Depends(get_db),
                     current_user: User = Depends(require_admin)):
+    _check_category(body.name, body.station)
     q = db.query(Category).filter(Category.id == cat_id)
     if current_user.restaurant_id:
         q = q.filter(Category.restaurant_id == current_user.restaurant_id)
@@ -103,6 +122,8 @@ def list_items(category_id: Optional[int] = None, db: Session = Depends(get_db),
 @router.post("/items", status_code=status.HTTP_201_CREATED)
 def create_item(body: MenuItemCreate, db: Session = Depends(get_db),
                 current_user: User = Depends(require_admin)):
+    _check_item(body.name, body.price)
+    body.name = body.name.strip()
     q = db.query(Category).filter(Category.id == body.category_id)
     if current_user.restaurant_id:
         q = q.filter(Category.restaurant_id == current_user.restaurant_id)
@@ -118,12 +139,18 @@ def create_item(body: MenuItemCreate, db: Session = Depends(get_db),
 @router.put("/items/{item_id}")
 def update_item(item_id: int, body: MenuItemUpdate, db: Session = Depends(get_db),
                 current_user: User = Depends(require_admin)):
+    _check_item(body.name, body.price)
     q = db.query(MenuItem).filter(MenuItem.id == item_id)
     if current_user.restaurant_id:
         q = q.filter(MenuItem.restaurant_id == current_user.restaurant_id)
     item = q.first()
     if not item:
         raise HTTPException(status_code=404, detail="Menu item not found")
+    if body.category_id is not None and body.category_id != item.category_id:
+        cq = db.query(Category).filter(Category.id == body.category_id,
+                                       Category.restaurant_id == item.restaurant_id)
+        if not cq.first():
+            raise HTTPException(status_code=404, detail="Category not found")
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(item, field, value)
     db.commit()

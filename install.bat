@@ -28,6 +28,19 @@ echo  Install directory: %INSTALL_DIR%
 echo.
 
 :: ── Create virtual environment ────────────────────────────────
+:: A venv copied from another PC (or after reinstalling Python) points at a Python
+:: that no longer exists — rebuild it in place.
+if exist "%INSTALL_DIR%\venv\Scripts\python.exe" (
+    "%INSTALL_DIR%\venv\Scripts\python.exe" -c "import sys" >nul 2>&1
+    if errorlevel 1 (
+        echo  Existing virtual environment is broken - rebuilding it...
+        python -m venv --clear "%INSTALL_DIR%\venv"
+        if errorlevel 1 (
+            echo  [ERROR] Could not rebuild the virtual environment.
+            pause & exit /b 1
+        )
+    )
+)
 if not exist "%INSTALL_DIR%\venv" (
     echo  Creating virtual environment...
     python -m venv "%INSTALL_DIR%\venv"

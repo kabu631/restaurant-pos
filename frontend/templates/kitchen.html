@@ -4,308 +4,241 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kitchen Display — Restaurant POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
   <style>
-    @keyframes pulse-new { 0%,100%{opacity:1} 50%{opacity:.6} }
-    .pulse-new { animation: pulse-new 1.2s ease-in-out 3; }
+    @keyframes flash-new { 0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); } 50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, .9); } }
+    .is-new { animation: flash-new 1s ease-in-out 4; }
+    body.kds-lg .kds-item { font-size: 1.35rem; }
+    body.kds-lg .kds-qty { font-size: 2rem; }
   </style>
 </head>
 <body class="bg-gray-950 text-white min-h-screen flex flex-col select-none">
 
-<!-- Header -->
-<header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between shrink-0">
-  <div class="flex items-center gap-4">
-    <span class="text-xl font-bold tracking-wide text-orange-400">KITCHEN DISPLAY</span>
-    <span id="ticket-count"
-      class="bg-orange-500 text-white text-sm font-bold px-3 py-0.5 rounded-full">0</span>
-  </div>
-  <div class="flex items-center gap-4 text-sm">
-    <span id="clock" class="text-gray-400 font-mono text-lg"></span>
-    <label class="flex items-center gap-2 text-gray-400 cursor-pointer">
-      <input id="auto-refresh" type="checkbox" checked class="accent-orange-500" />
-      Auto-refresh
-    </label>
-    <a href="/orders" class="text-gray-500 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors text-xs">Orders</a>
-    <a href="/billing" class="text-gray-500 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors text-xs">Billing</a>
-    <a href="/dashboard" class="text-gray-500 hover:text-white border border-gray-700 px-3 py-1 rounded text-xs">
-      🍽️ Dashboard
-    </a>
-  </div>
-</header>
+<div id="pos-nav"></div>
 
-<!-- Legend -->
-<div class="bg-gray-900 border-b border-gray-800 px-6 py-2 flex items-center gap-6 text-xs">
-  <span class="flex items-center gap-1.5">
-    <span class="w-3 h-3 rounded-sm bg-yellow-400 inline-block"></span>Sent
-  </span>
-  <span class="flex items-center gap-1.5">
-    <span class="w-3 h-3 rounded-sm bg-orange-500 inline-block"></span>Preparing
-  </span>
-  <span class="flex items-center gap-1.5">
-    <span class="w-3 h-3 rounded-sm bg-green-500 inline-block"></span>Ready
-  </span>
-  <span class="ml-auto text-gray-500" id="last-updated">—</span>
+<!-- KDS toolbar -->
+<div class="bg-gray-900 border-b border-gray-800 px-3 sm:px-4 py-2 flex flex-wrap items-center gap-2 shrink-0">
+  <span class="text-lg font-extrabold tracking-wide text-orange-400 mr-1">KITCHEN</span>
+  <div id="station-tabs" class="flex gap-1"></div>
+  <div class="flex-1"></div>
+  <span id="updated" class="text-xs text-gray-500 hidden sm:block"></span>
+  <button id="btn-sound" onclick="toggleSound()" class="px-3 py-2 rounded-lg text-sm font-semibold"></button>
+  <button onclick="toggleSize()" class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-semibold" title="Text size">A±</button>
+  <button onclick="toggleFullscreen()" class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-semibold" title="Full screen">⛶</button>
 </div>
 
-<!-- Tickets grid -->
-<div id="tickets-area" class="flex-1 p-4 overflow-y-auto">
-  <div id="tickets-grid"
-    class="grid gap-4"
-    style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));">
-  </div>
-  <div id="empty-state"
-    class="hidden flex flex-col items-center justify-center h-64 text-gray-600">
-    <svg class="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-        d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806
-           3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806
-           3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946
-           3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946
-           3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806
-           3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806
-           3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946
-           3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946
-           3.42 3.42 0 013.138-3.138z"/>
-    </svg>
-    <p class="text-xl font-medium">All clear — kitchen is caught up!</p>
-    <p class="text-sm mt-1">Waiting for new orders…</p>
-  </div>
+<div class="bg-gray-900/60 border-b border-gray-800 px-4 py-1.5 flex items-center gap-5 text-xs text-gray-400">
+  <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-yellow-400"></span>New — accept it</span>
+  <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-orange-500"></span>Accepted · cooking</span>
+  <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-green-500"></span>Ready</span>
+  <span class="hidden sm:inline">· Accepting sends the table's total to the cashier · Timer turns amber at 5 min, red at 10 min</span>
 </div>
 
-<!-- KOT Print modal -->
-<div id="print-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-  <div class="bg-white text-gray-900 rounded-xl shadow-2xl w-80 p-0 overflow-hidden">
-    <div class="bg-gray-800 text-white px-5 py-3 flex justify-between items-center">
-      <span class="font-bold">KOT Slip</span>
-      <button onclick="closePrint()" class="text-gray-400 hover:text-white text-xl">&times;</button>
-    </div>
-    <div id="print-content" class="p-5 font-mono text-sm"></div>
-    <div class="px-5 pb-4 flex gap-3">
-      <button onclick="closePrint()"
-        class="flex-1 border rounded py-2 text-sm hover:bg-gray-50">Close</button>
-      <button onclick="window.print()"
-        class="flex-1 bg-gray-900 text-white rounded py-2 text-sm hover:bg-gray-700">
-        Print
-      </button>
-    </div>
+<main class="flex-1 p-3 sm:p-4 overflow-y-auto">
+  <div id="grid" class="grid gap-3 items-start" style="grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));"></div>
+  <div id="empty" class="hidden flex-col items-center justify-center py-24 text-gray-600">
+    <div class="text-6xl mb-3">✅</div>
+    <p class="text-2xl font-semibold">All caught up!</p>
+    <p class="text-sm mt-1">New orders appear here automatically.</p>
   </div>
-</div>
+</main>
 
 <script>
-  const token = localStorage.getItem('token');
-  if (!token) window.location.href = '/login';
+const { api, esc, toast, fail } = POS;
+let tickets = [];
+let fetchedAt = Date.now();
+let station = localStorage.getItem('kds.station') || 'all';
+let known = null;          // ticket keys seen so far (null until first load)
+let soundOn = localStorage.getItem('kds.sound') !== 'off';
+const STATUS = {
+  sent:      ['NEW', 'bg-yellow-400 text-yellow-950'],
+  preparing: ['ACCEPTED', 'bg-orange-500 text-white'],
+  ready:     ['READY', 'bg-green-500 text-white'],
+};
 
-  let knownTicketKeys = new Set();
-  let refreshTimer = null;
+function key(t) { return `${t.order_id}-${t.kot_number}`; }
 
-  async function api(path, opts = {}) {
-    return fetch(path, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers||{}) },
-      ...opts,
-    });
+async function init() {
+  if (!POS.guard(['admin', 'cashier', 'waiter', 'kitchen', 'superadmin'])) return;
+  POS.nav('/kitchen', { readyAlerts: false });
+  if (localStorage.getItem('kds.size') === 'lg') document.body.classList.add('kds-lg');
+  renderSoundBtn();
+  await load();
+  setInterval(() => { if (!document.hidden) load(); }, 4000);
+  setInterval(tickTimers, 1000);
+}
+
+async function load() {
+  try {
+    tickets = await api('/api/kitchen/tickets');
+    fetchedAt = Date.now();
+  } catch (e) {
+    document.getElementById('updated').textContent = '⚠ Connection lost — retrying…';
+    return;
   }
+  const keys = new Set(tickets.map(key));
+  const fresh = known ? tickets.filter(t => !known.has(key(t)) && visibleItems(t).length) : [];
+  if (fresh.length && soundOn) POS.beep(3, 880);
+  const freshKeys = new Set(fresh.map(key));
+  known = keys;
+  render(freshKeys);
+  document.getElementById('updated').textContent = 'Updated ' + POS.time(new Date().toISOString());
+}
 
-  // ---- Clock ----
-  function updateClock() {
-    const now = new Date();
-    document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    });
+function visibleItems(t) {
+  return station === 'all' ? t.items : t.items.filter(i => i.station === station);
+}
+
+function render(freshKeys = new Set()) {
+  const counts = { all: 0, kitchen: 0, bar: 0 };
+  tickets.forEach(t => {
+    counts.all++;
+    if (t.stations.includes('kitchen')) counts.kitchen++;
+    if (t.stations.includes('bar')) counts.bar++;
+  });
+  const tabs = counts.bar ? ['all', 'kitchen', 'bar'] : ['all'];
+  if (!tabs.includes(station)) station = 'all';
+  document.getElementById('station-tabs').innerHTML = tabs.map(s => `
+    <button onclick="setStation('${s}')" class="px-3 py-2 rounded-lg text-sm font-semibold ${station === s ? 'bg-orange-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}">
+      ${s === 'all' ? 'All' : s === 'kitchen' ? '🍳 Kitchen' : '🍹 Bar'} <span class="opacity-80">${counts[s]}</span></button>`).join('');
+
+  const shown = tickets.filter(t => visibleItems(t).length);
+  document.getElementById('grid').innerHTML = shown.map(t => ticketHtml(t, freshKeys.has(key(t)))).join('');
+  const empty = document.getElementById('empty');
+  empty.classList.toggle('hidden', shown.length > 0);
+  empty.classList.toggle('flex', shown.length === 0);
+  tickTimers();
+}
+
+function ticketHtml(t, isNew) {
+  const items = visibleItems(t);
+  const statuses = new Set(items.map(i => i.kot_status));
+  const action = statuses.has('sent') ? ['✓ Accept order', 'bg-yellow-500 hover:bg-yellow-400 text-black']
+               : statuses.has('preparing') ? ['✓ All ready', 'bg-green-600 hover:bg-green-700']
+               : ['🍽 Served — clear', 'bg-blue-600 hover:bg-blue-700'];
+  const where = t.table_number ? `Table ${esc(t.table_number)}`
+              : t.order_type === 'delivery' ? '🛵 Delivery' : '🥡 Takeaway';
+  return `<article data-key="${key(t)}" data-age="${t.age_sec}" class="rounded-2xl bg-gray-900 border-2 border-gray-700 overflow-hidden ${isNew ? 'is-new' : ''}">
+    <header class="px-4 py-2.5 flex items-center justify-between gap-2 bg-gray-800">
+      <div>
+        <div class="text-xl font-extrabold">${t.stations.length === 1 && t.stations[0] === 'bar' ? 'BOT' : 'KOT'} #${t.kot_number ?? '–'}</div>
+        <div class="text-xs text-gray-400">${POS.time(t.sent_at)}${t.waiter_name ? ' · ' + esc(t.waiter_name) : ''}${t.guests ? ' · 👥 ' + t.guests : ''}</div>
+      </div>
+      <div class="text-right">
+        <div class="text-lg font-bold text-orange-300">${where}</div>
+        <div class="timer font-mono text-lg font-bold">--:--</div>
+      </div>
+    </header>
+    ${t.customer_name && !t.table_number ? `<div class="px-4 py-1 bg-gray-800/60 text-sm text-gray-300">👤 ${esc(t.customer_name)}</div>` : ''}
+    ${t.order_notes ? `<div class="px-4 py-1.5 bg-yellow-900/40 text-yellow-200 text-sm border-y border-yellow-800">📝 ${esc(t.order_notes)}</div>` : ''}
+    <div class="divide-y divide-gray-800">
+      ${items.map(i => {
+        const [txt, cls] = STATUS[i.kot_status] || [i.kot_status, 'bg-gray-600'];
+        return `<button onclick="bump(${i.id})" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-800/70 active:bg-gray-800">
+          <span class="kds-qty text-2xl font-extrabold w-9 text-center ${i.kot_status === 'ready' ? 'text-green-400' : ''}">${i.quantity}</span>
+          <span class="flex-1 min-w-0">
+            <span class="kds-item block font-semibold text-lg leading-snug ${i.kot_status === 'ready' ? 'text-green-300' : ''}">${esc(i.name)}</span>
+            ${i.notes ? `<span class="block text-sm text-yellow-300 font-semibold">⚠ ${esc(i.notes)}</span>` : ''}
+          </span>
+          <span class="text-[11px] font-bold px-2 py-1 rounded-md ${cls}">${txt}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <footer class="p-2.5 flex gap-2 bg-gray-800/50">
+      <button onclick="POS.printKot(${t.order_id}, ${t.kot_number})" class="px-3 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-sm" title="Print">🖨</button>
+      <button onclick="advance(${t.order_id}, ${t.kot_number})" class="flex-1 py-3 rounded-xl text-base font-bold ${action[1]}">${action[0]}</button>
+    </footer>
+  </article>`;
+}
+
+function tickTimers() {
+  const extra = Math.floor((Date.now() - fetchedAt) / 1000);
+  document.querySelectorAll('#grid article').forEach(card => {
+    const secs = Number(card.dataset.age) + extra;
+    const m = Math.floor(secs / 60), s = secs % 60;
+    const timer = card.querySelector('.timer');
+    timer.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    const late = secs >= 600, slow = secs >= 300;
+    timer.className = `timer font-mono text-lg font-bold ${late ? 'text-red-400 animate-pulse' : slow ? 'text-amber-300' : 'text-gray-300'}`;
+    card.classList.toggle('border-red-500', late);
+    card.classList.toggle('border-amber-400', slow && !late);
+    card.classList.toggle('border-gray-700', !slow);
+  });
+}
+
+function setStation(s) {
+  station = s;
+  localStorage.setItem('kds.station', s);
+  render();
+}
+
+// ── Actions (each can be undone for a few seconds) ─────────────────────────
+function offerUndo(changes, message) {
+  if (!changes.length) return;
+  toast(message, {
+    action: {
+      label: 'Undo',
+      fn: async () => {
+        try {
+          await Promise.all(changes.map(c => api(`/api/kitchen/items/${c.id}/status`, {
+            method: 'PATCH', body: { kot_status: c.previous },
+          })));
+          load();
+        } catch (e) { fail(e); }
+      },
+    },
+  });
+}
+
+async function bump(itemId) {
+  try {
+    const r = await api(`/api/kitchen/items/${itemId}/bump`, { method: 'PATCH' });
+    await load();
+    offerUndo([{ id: r.id, previous: r.previous }], `Moved to ${r.kot_status}`);
+  } catch (e) { fail(e); }
+}
+
+async function advance(orderId, kotNumber) {
+  try {
+    const q = station === 'all' ? '' : `?station=${station}`;
+    const r = await api(`/api/kitchen/tickets/${orderId}/${kotNumber}/advance${q}`, { method: 'PATCH' });
+    await load();
+    const words = { preparing: 'Order accepted — the cashier now has this table', ready: 'Marked ready — waiters notified', served: 'Ticket cleared' };
+    offerUndo(r.changed, words[r.kot_status] || 'Updated');
+  } catch (e) { fail(e); }
+}
+
+// ── Screen options ─────────────────────────────────────────────────────────
+function renderSoundBtn() {
+  const btn = document.getElementById('btn-sound');
+  const live = soundOn && POS.audioReady();
+  btn.textContent = !soundOn ? '🔕 Sound off' : live ? '🔔 Sound on' : '🔔 Tap to enable sound';
+  btn.className = `px-3 py-2 rounded-lg text-sm font-semibold ${!soundOn ? 'bg-gray-800 text-gray-400' : live ? 'bg-green-700 hover:bg-green-600' : 'bg-yellow-500 text-black animate-pulse'}`;
+}
+function toggleSound() {
+  if (soundOn && !POS.audioReady()) {
+    POS.unlockAudio();
+    setTimeout(() => { POS.beep(1); renderSoundBtn(); }, 100);
+    return;
   }
-  setInterval(updateClock, 1000);
-  updateClock();
+  soundOn = !soundOn;
+  localStorage.setItem('kds.sound', soundOn ? 'on' : 'off');
+  if (soundOn) { POS.unlockAudio(); setTimeout(() => POS.beep(1), 100); }
+  renderSoundBtn();
+}
+document.addEventListener('pointerdown', () => setTimeout(renderSoundBtn, 150));
 
-  // ---- Status helpers ----
-  function statusColor(s) {
-    if (s === 'sent')      return 'bg-yellow-400 text-yellow-900';
-    if (s === 'preparing') return 'bg-orange-500 text-white';
-    if (s === 'ready')     return 'bg-green-500 text-white';
-    return 'bg-gray-500 text-white';
-  }
+function toggleSize() {
+  const lg = document.body.classList.toggle('kds-lg');
+  localStorage.setItem('kds.size', lg ? 'lg' : 'md');
+}
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => toast('Full screen not available', { type: 'warn' }));
+}
 
-  function ticketBorder(ticket) {
-    if (ticket.all_ready) return 'border-green-500';
-    if (ticket.items.some(i => i.kot_status === 'preparing')) return 'border-orange-500';
-    return 'border-yellow-400';
-  }
-
-  function elapsed(sentAt) {
-    if (!sentAt) return '';
-    const diff = Math.floor((Date.now() - new Date(sentAt).getTime()) / 1000);
-    const m = Math.floor(diff / 60), s = diff % 60;
-    const label = m > 0 ? `${m}m ${s}s` : `${s}s`;
-    const urgent = diff > 600;  // >10 min
-    return `<span class="${urgent ? 'text-red-400 font-bold' : 'text-gray-400'} text-xs">${label} ago</span>`;
-  }
-
-  // ---- Render ----
-  function renderTickets(tickets) {
-    const grid = document.getElementById('tickets-grid');
-    const empty = document.getElementById('empty-state');
-    document.getElementById('ticket-count').textContent = tickets.length;
-
-    if (tickets.length === 0) {
-      grid.innerHTML = '';
-      empty.classList.remove('hidden');
-      return;
-    }
-    empty.classList.add('hidden');
-
-    const newKeys = new Set(tickets.map(t => `${t.order_id}-${t.kot_number}`));
-
-    grid.innerHTML = tickets.map(ticket => {
-      const key = `${ticket.order_id}-${ticket.kot_number}`;
-      const isNew = !knownTicketKeys.has(key);
-      const tableLabel = ticket.table_number
-        ? `Table ${ticket.table_number}`
-        : ticket.order_type === 'takeaway' ? 'Takeaway'
-        : ticket.order_type === 'delivery' ? 'Delivery'
-        : 'Walk-in';
-
-      return `
-        <div class="rounded-xl border-2 ${ticketBorder(ticket)} bg-gray-900 overflow-hidden
-                    ${isNew ? 'pulse-new' : ''}">
-          <!-- Ticket header -->
-          <div class="px-4 py-2.5 flex items-center justify-between bg-gray-800">
-            <div>
-              <span class="text-lg font-bold text-white">KOT #${ticket.kot_number}</span>
-              <span class="ml-2 text-sm text-gray-400">Order #${ticket.order_id}</span>
-            </div>
-            <div class="text-right">
-              <div class="text-sm font-semibold text-orange-300">${tableLabel}</div>
-              ${elapsed(ticket.sent_at)}
-            </div>
-          </div>
-
-          ${ticket.customer_name ? `
-          <div class="px-4 py-1 bg-gray-800/50 text-xs text-gray-400">
-            Customer: ${ticket.customer_name}
-          </div>` : ''}
-
-          ${ticket.order_notes ? `
-          <div class="px-4 py-1 bg-yellow-900/30 text-xs text-yellow-300 border-b border-yellow-800">
-            Note: ${ticket.order_notes}
-          </div>` : ''}
-
-          <!-- Items -->
-          <div class="divide-y divide-gray-800">
-            ${ticket.items.map(item => `
-              <div class="px-4 py-3 flex items-center gap-3">
-                <span class="text-2xl font-bold text-white w-8 text-center">${item.quantity}</span>
-                <div class="flex-1 min-w-0">
-                  <div class="font-semibold text-base text-white">${item.name}</div>
-                  ${item.notes ? `<div class="text-xs text-yellow-400 mt-0.5">${item.notes}</div>` : ''}
-                </div>
-                <div class="flex flex-col items-end gap-1">
-                  <span class="text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(item.kot_status)}">
-                    ${item.kot_status.toUpperCase()}
-                  </span>
-                  <button onclick="bumpItem(${item.id})"
-                    class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-0.5 rounded text-gray-300">
-                    Bump ›
-                  </button>
-                </div>
-              </div>`).join('')}
-          </div>
-
-          <!-- Footer actions -->
-          <div class="px-4 py-2.5 border-t border-gray-800 flex gap-2 bg-gray-800/50">
-            <button onclick="showPrint(${JSON.stringify(ticket).replace(/"/g, '&quot;')})"
-              class="flex-1 text-xs py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300">
-              Print KOT
-            </button>
-            ${ticket.all_ready ? `
-            <button onclick="bumpAll(${ticket.order_id}, ${ticket.kot_number})"
-              class="flex-1 text-xs py-1.5 rounded bg-green-600 hover:bg-green-700 text-white font-medium">
-              Served ✓
-            </button>` : `
-            <button onclick="bumpTicketAll(${ticket.order_id}, ${ticket.kot_number})"
-              class="flex-1 text-xs py-1.5 rounded bg-orange-600 hover:bg-orange-700 text-white font-medium">
-              All Preparing
-            </button>`}
-          </div>
-        </div>`;
-    }).join('');
-
-    knownTicketKeys = newKeys;
-    document.getElementById('last-updated').textContent =
-      'Updated ' + new Date().toLocaleTimeString();
-  }
-
-  // ---- Actions ----
-  async function bumpItem(oi_id) {
-    await api(`/api/kitchen/items/${oi_id}/bump`, { method: 'PATCH' });
-    loadTickets();
-  }
-
-  async function bumpAll(orderId, kotNum) {
-    await api(`/api/kitchen/tickets/${orderId}/${kotNum}/bump-all`, { method: 'PATCH' });
-    loadTickets();
-  }
-
-  async function bumpTicketAll(orderId, kotNum) {
-    // Bump all non-ready items to preparing
-    const res = await api('/api/kitchen/tickets');
-    const tickets = await res.json();
-    const ticket = tickets.find(t => t.order_id === orderId && t.kot_number === kotNum);
-    if (!ticket) return;
-    const toPrep = ticket.items.filter(i => i.kot_status === 'sent');
-    await Promise.all(toPrep.map(i =>
-      api(`/api/kitchen/items/${i.id}/status`, {
-        method: 'PATCH', body: JSON.stringify({ kot_status: 'preparing' })
-      })
-    ));
-    loadTickets();
-  }
-
-  // ---- Load ----
-  async function loadTickets() {
-    try {
-      const res = await api('/api/kitchen/tickets');
-      if (!res.ok) return;
-      const tickets = await res.json();
-      renderTickets(tickets);
-    } catch (_) { /* network hiccup — keep showing last state */ }
-  }
-
-  // ---- Auto refresh ----
-  function scheduleRefresh() {
-    clearTimeout(refreshTimer);
-    if (document.getElementById('auto-refresh').checked) {
-      refreshTimer = setTimeout(() => { loadTickets(); scheduleRefresh(); }, 4000);
-    }
-  }
-  document.getElementById('auto-refresh').addEventListener('change', scheduleRefresh);
-
-  // ---- Print KOT ----
-  function showPrint(ticket) {
-    const lines = ticket.items.map(i =>
-      `  ${String(i.quantity).padStart(2)}x  ${i.name}${i.notes ? '\n        NOTE: ' + i.notes : ''}`
-    ).join('\n');
-
-    const tableLabel = ticket.table_number ? `Table: ${ticket.table_number}` : ticket.order_type.toUpperCase();
-    const time = ticket.sent_at ? new Date(ticket.sent_at).toLocaleTimeString() : '';
-
-    document.getElementById('print-content').innerHTML = `<pre class="whitespace-pre-wrap text-sm leading-relaxed">
-================================
-     KITCHEN ORDER TICKET
-================================
-Order #${ticket.order_id}   KOT #${ticket.kot_number}
-${tableLabel}
-Time: ${time}
---------------------------------
-${lines}
-================================
-</pre>`;
-    document.getElementById('print-modal').classList.remove('hidden');
-  }
-
-  function closePrint() {
-    document.getElementById('print-modal').classList.add('hidden');
-  }
-
-  loadTickets();
-  scheduleRefresh();
+init();
 </script>
 </body>
 </html>
