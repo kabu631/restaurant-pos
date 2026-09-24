@@ -6,7 +6,7 @@
 
 -- MariaDB dump 10.19  Distrib 10.4.32-MariaDB, for Win64 (AMD64)
 --
--- Host: 127.0.0.1    Database: pos_scratch_dump
+-- Host: localhost    Database: pos_scratch_dump
 -- ------------------------------------------------------
 -- Server version	10.4.32-MariaDB
 
@@ -177,6 +177,80 @@ LOCK TABLES `bills` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `cash_movements`
+--
+
+DROP TABLE IF EXISTS `cash_movements`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `cash_movements` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `restaurant_id` int(11) NOT NULL,
+  `shift_id` int(11) NOT NULL,
+  `kind` varchar(5) NOT NULL,
+  `amount` double NOT NULL,
+  `reason` varchar(200) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `restaurant_id` (`restaurant_id`),
+  KEY `user_id` (`user_id`),
+  KEY `ix_cash_movements_shift_id` (`shift_id`),
+  CONSTRAINT `cash_movements_ibfk_1` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`),
+  CONSTRAINT `cash_movements_ibfk_2` FOREIGN KEY (`shift_id`) REFERENCES `cash_shifts` (`id`),
+  CONSTRAINT `cash_movements_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `cash_movements`
+--
+
+LOCK TABLES `cash_movements` WRITE;
+/*!40000 ALTER TABLE `cash_movements` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cash_movements` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cash_shifts`
+--
+
+DROP TABLE IF EXISTS `cash_shifts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `cash_shifts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `restaurant_id` int(11) NOT NULL,
+  `status` varchar(10) NOT NULL,
+  `opened_by` int(11) NOT NULL,
+  `opened_at` datetime DEFAULT current_timestamp(),
+  `opening_float` double NOT NULL,
+  `closed_by` int(11) DEFAULT NULL,
+  `closed_at` datetime DEFAULT NULL,
+  `expected_cash` double DEFAULT NULL,
+  `counted_cash` double DEFAULT NULL,
+  `difference` double DEFAULT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `opened_by` (`opened_by`),
+  KEY `closed_by` (`closed_by`),
+  KEY `ix_cash_shifts_restaurant_id` (`restaurant_id`),
+  CONSTRAINT `cash_shifts_ibfk_1` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants` (`id`),
+  CONSTRAINT `cash_shifts_ibfk_2` FOREIGN KEY (`opened_by`) REFERENCES `users` (`id`),
+  CONSTRAINT `cash_shifts_ibfk_3` FOREIGN KEY (`closed_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `cash_shifts`
+--
+
+LOCK TABLES `cash_shifts` WRITE;
+/*!40000 ALTER TABLE `cash_shifts` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cash_shifts` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `categories`
 --
 
@@ -203,7 +277,7 @@ CREATE TABLE `categories` (
 
 LOCK TABLES `categories` WRITE;
 /*!40000 ALTER TABLE `categories` DISABLE KEYS */;
-INSERT INTO `categories` VALUES (1,1,'Momo & Dumplings',1,1,'kitchen','2026-09-24 18:46:32'),(2,1,'Dal Bhat Set',2,1,'kitchen','2026-09-24 18:46:32'),(3,1,'Noodles & Rice',3,1,'kitchen','2026-09-24 18:46:32'),(4,1,'Grill & Starters',4,1,'kitchen','2026-09-24 18:46:32'),(5,1,'Hot Drinks',5,1,'bar','2026-09-24 18:46:32'),(6,1,'Cold Drinks',6,1,'none','2026-09-24 18:46:32'),(7,1,'Desserts',7,1,'kitchen','2026-09-24 18:46:32'),(8,2,'Momo & Dumplings',1,1,'kitchen','2026-09-24 18:46:44'),(9,2,'Dal Bhat Set',2,1,'kitchen','2026-09-24 18:46:44'),(10,2,'Noodles & Rice',3,1,'kitchen','2026-09-24 18:46:44'),(11,2,'Grill & Starters',4,1,'kitchen','2026-09-24 18:46:44'),(12,2,'Hot Drinks',5,1,'bar','2026-09-24 18:46:44'),(13,2,'Cold Drinks',6,1,'none','2026-09-24 18:46:44'),(14,2,'Desserts',7,1,'kitchen','2026-09-24 18:46:44');
+INSERT INTO `categories` VALUES (1,1,'Momo & Dumplings',1,1,'kitchen','2026-09-24 19:43:41'),(2,1,'Dal Bhat Set',2,1,'kitchen','2026-09-24 19:43:41'),(3,1,'Noodles & Rice',3,1,'kitchen','2026-09-24 19:43:41'),(4,1,'Grill & Starters',4,1,'kitchen','2026-09-24 19:43:41'),(5,1,'Hot Drinks',5,1,'bar','2026-09-24 19:43:41'),(6,1,'Cold Drinks',6,1,'none','2026-09-24 19:43:41'),(7,1,'Desserts',7,1,'kitchen','2026-09-24 19:43:41'),(8,2,'Momo & Dumplings',1,1,'kitchen','2026-09-24 19:43:43'),(9,2,'Dal Bhat Set',2,1,'kitchen','2026-09-24 19:43:43'),(10,2,'Noodles & Rice',3,1,'kitchen','2026-09-24 19:43:43'),(11,2,'Grill & Starters',4,1,'kitchen','2026-09-24 19:43:43'),(12,2,'Hot Drinks',5,1,'bar','2026-09-24 19:43:43'),(13,2,'Cold Drinks',6,1,'none','2026-09-24 19:43:43'),(14,2,'Desserts',7,1,'kitchen','2026-09-24 19:43:43');
 /*!40000 ALTER TABLE `categories` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -311,7 +385,7 @@ CREATE TABLE `menu_items` (
 
 LOCK TABLES `menu_items` WRITE;
 /*!40000 ALTER TABLE `menu_items` DISABLE KEYS */;
-INSERT INTO `menu_items` VALUES (1,1,1,'Chicken Momo','चिकेन मम',250,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(2,1,1,'Veg Momo','भेज मम',180,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(3,1,1,'Buff Momo','बफ मम',220,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(4,1,1,'Jhol Momo','झोल मम',280,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(5,1,1,'C-Momo','सी-मम',300,NULL,NULL,1,1,NULL,5,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(6,1,2,'Dal Bhat Set Veg','दाल भात (भेज)',350,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(7,1,2,'Dal Bhat Set Chicken','दाल भात (चिकेन)',450,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(8,1,2,'Dal Bhat Set Mutton','दाल भात (खसी)',550,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(9,1,3,'Chicken Chowmein','चिकेन चाउमिन',200,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(10,1,3,'Veg Chowmein','भेज चाउमिन',160,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(11,1,3,'Fried Rice Chicken','चिकेन फ्राइड राइस',280,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(12,1,3,'Fried Rice Veg','भेज फ्राइड राइस',220,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(13,1,3,'Thukpa','थुक्पा',240,NULL,NULL,1,1,NULL,5,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(14,1,4,'Chicken Sekuwa','चिकेन सेकुवा',400,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(15,1,4,'Paneer Tikka','पनिर टिक्का',350,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(16,1,4,'Chicken Choila','चिकेन छोयला',380,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(17,1,4,'French Fries','फ्रेन्च फ्राइज',180,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(18,1,5,'Milk Tea','दुध चिया',40,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(19,1,5,'Lemon Tea','लेमन टी',60,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(20,1,5,'Black Coffee','कालो कफी',120,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(21,1,5,'Cappuccino','क्यापुचिनो',180,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(22,1,6,'Coke','कोक',80,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(23,1,6,'Fanta','फान्टा',80,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(24,1,6,'Mineral Water','पानी',40,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(25,1,7,'Kheer','खिर',120,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(26,1,7,'Gulab Jamun','गुलाब जामुन',150,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(27,2,8,'Chicken Momo','चिकेन मम',250,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(28,2,8,'Veg Momo','भेज मम',180,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(29,2,8,'Buff Momo','बफ मम',220,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(30,2,8,'Jhol Momo','झोल मम',280,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(31,2,8,'C-Momo','सी-मम',300,NULL,NULL,1,1,NULL,5,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(32,2,9,'Dal Bhat Set Veg','दाल भात (भेज)',350,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(33,2,9,'Dal Bhat Set Chicken','दाल भात (चिकेन)',450,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(34,2,9,'Dal Bhat Set Mutton','दाल भात (खसी)',550,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(35,2,10,'Chicken Chowmein','चिकेन चाउमिन',200,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(36,2,10,'Veg Chowmein','भेज चाउमिन',160,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(37,2,10,'Fried Rice Chicken','चिकेन फ्राइड राइस',280,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(38,2,10,'Fried Rice Veg','भेज फ्राइड राइस',220,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(39,2,10,'Thukpa','थुक्पा',240,NULL,NULL,1,1,NULL,5,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(40,2,11,'Chicken Sekuwa','चिकेन सेकुवा',400,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(41,2,11,'Paneer Tikka','पनिर टिक्का',350,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(42,2,11,'Chicken Choila','चिकेन छोयला',380,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(43,2,11,'French Fries','फ्रेन्च फ्राइज',180,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(44,2,12,'Milk Tea','दुध चिया',40,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(45,2,12,'Lemon Tea','लेमन टी',60,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(46,2,12,'Black Coffee','कालो कफी',120,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(47,2,12,'Cappuccino','क्यापुचिनो',180,NULL,NULL,1,1,NULL,4,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(48,2,13,'Coke','कोक',80,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(49,2,13,'Fanta','फान्टा',80,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(50,2,13,'Mineral Water','पानी',40,NULL,NULL,1,1,NULL,3,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(51,2,14,'Kheer','खिर',120,NULL,NULL,1,1,NULL,1,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(52,2,14,'Gulab Jamun','गुलाब जामुन',150,NULL,NULL,1,1,NULL,2,'2026-09-24 18:46:44','2026-09-24 18:46:44');
+INSERT INTO `menu_items` VALUES (1,1,1,'Chicken Momo','चिकेन मम',250,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(2,1,1,'Veg Momo','भेज मम',180,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(3,1,1,'Buff Momo','बफ मम',220,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(4,1,1,'Jhol Momo','झोल मम',280,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(5,1,1,'C-Momo','सी-मम',300,NULL,NULL,1,1,NULL,5,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(6,1,2,'Dal Bhat Set Veg','दाल भात (भेज)',350,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(7,1,2,'Dal Bhat Set Chicken','दाल भात (चिकेन)',450,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(8,1,2,'Dal Bhat Set Mutton','दाल भात (खसी)',550,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(9,1,3,'Chicken Chowmein','चिकेन चाउमिन',200,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(10,1,3,'Veg Chowmein','भेज चाउमिन',160,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(11,1,3,'Fried Rice Chicken','चिकेन फ्राइड राइस',280,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(12,1,3,'Fried Rice Veg','भेज फ्राइड राइस',220,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(13,1,3,'Thukpa','थुक्पा',240,NULL,NULL,1,1,NULL,5,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(14,1,4,'Chicken Sekuwa','चिकेन सेकुवा',400,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(15,1,4,'Paneer Tikka','पनिर टिक्का',350,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(16,1,4,'Chicken Choila','चिकेन छोयला',380,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(17,1,4,'French Fries','फ्रेन्च फ्राइज',180,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(18,1,5,'Milk Tea','दुध चिया',40,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(19,1,5,'Lemon Tea','लेमन टी',60,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(20,1,5,'Black Coffee','कालो कफी',120,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(21,1,5,'Cappuccino','क्यापुचिनो',180,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(22,1,6,'Coke','कोक',80,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(23,1,6,'Fanta','फान्टा',80,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(24,1,6,'Mineral Water','पानी',40,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(25,1,7,'Kheer','खिर',120,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(26,1,7,'Gulab Jamun','गुलाब जामुन',150,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(27,2,8,'Chicken Momo','चिकेन मम',250,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(28,2,8,'Veg Momo','भेज मम',180,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(29,2,8,'Buff Momo','बफ मम',220,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(30,2,8,'Jhol Momo','झोल मम',280,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(31,2,8,'C-Momo','सी-मम',300,NULL,NULL,1,1,NULL,5,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(32,2,9,'Dal Bhat Set Veg','दाल भात (भेज)',350,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(33,2,9,'Dal Bhat Set Chicken','दाल भात (चिकेन)',450,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(34,2,9,'Dal Bhat Set Mutton','दाल भात (खसी)',550,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(35,2,10,'Chicken Chowmein','चिकेन चाउमिन',200,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(36,2,10,'Veg Chowmein','भेज चाउमिन',160,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(37,2,10,'Fried Rice Chicken','चिकेन फ्राइड राइस',280,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(38,2,10,'Fried Rice Veg','भेज फ्राइड राइस',220,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(39,2,10,'Thukpa','थुक्पा',240,NULL,NULL,1,1,NULL,5,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(40,2,11,'Chicken Sekuwa','चिकेन सेकुवा',400,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(41,2,11,'Paneer Tikka','पनिर टिक्का',350,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(42,2,11,'Chicken Choila','चिकेन छोयला',380,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(43,2,11,'French Fries','फ्रेन्च फ्राइज',180,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(44,2,12,'Milk Tea','दुध चिया',40,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(45,2,12,'Lemon Tea','लेमन टी',60,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(46,2,12,'Black Coffee','कालो कफी',120,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(47,2,12,'Cappuccino','क्यापुचिनो',180,NULL,NULL,1,1,NULL,4,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(48,2,13,'Coke','कोक',80,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(49,2,13,'Fanta','फान्टा',80,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(50,2,13,'Mineral Water','पानी',40,NULL,NULL,1,1,NULL,3,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(51,2,14,'Kheer','खिर',120,NULL,NULL,1,1,NULL,1,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(52,2,14,'Gulab Jamun','गुलाब जामुन',150,NULL,NULL,1,1,NULL,2,'2026-09-24 19:43:43','2026-09-24 19:43:43');
 /*!40000 ALTER TABLE `menu_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -493,7 +567,7 @@ CREATE TABLE `restaurant_tables` (
 
 LOCK TABLES `restaurant_tables` WRITE;
 /*!40000 ALTER TABLE `restaurant_tables` DISABLE KEYS */;
-INSERT INTO `restaurant_tables` VALUES (1,1,'T1',2,'free','Ground',0,0,'2026-09-24 18:46:32'),(2,1,'T2',2,'free','Ground',0,0,'2026-09-24 18:46:32'),(3,1,'T3',4,'free','Ground',0,0,'2026-09-24 18:46:32'),(4,1,'T4',4,'free','Ground',0,0,'2026-09-24 18:46:32'),(5,1,'T5',4,'free','Ground',0,0,'2026-09-24 18:46:32'),(6,1,'T6',4,'free','Ground',0,0,'2026-09-24 18:46:32'),(7,1,'T7',4,'free','Ground',0,0,'2026-09-24 18:46:32'),(8,1,'T8',4,'free','Ground',0,0,'2026-09-24 18:46:32'),(9,1,'T9',6,'free','First',0,0,'2026-09-24 18:46:32'),(10,1,'T10',6,'free','First',0,0,'2026-09-24 18:46:32'),(11,1,'T11',6,'free','First',0,0,'2026-09-24 18:46:32'),(12,1,'T12',6,'free','First',0,0,'2026-09-24 18:46:32'),(13,1,'VIP-1',8,'free','Rooftop',0,0,'2026-09-24 18:46:32'),(14,1,'VIP-2',8,'free','Rooftop',0,0,'2026-09-24 18:46:32'),(15,2,'T1',2,'free','Ground',0,0,'2026-09-24 18:46:44'),(16,2,'T2',2,'free','Ground',0,0,'2026-09-24 18:46:44'),(17,2,'T3',4,'free','Ground',0,0,'2026-09-24 18:46:44'),(18,2,'T4',4,'free','Ground',0,0,'2026-09-24 18:46:44'),(19,2,'T5',4,'free','Ground',0,0,'2026-09-24 18:46:44'),(20,2,'T6',4,'free','Ground',0,0,'2026-09-24 18:46:44'),(21,2,'T7',4,'free','Ground',0,0,'2026-09-24 18:46:44'),(22,2,'T8',4,'free','Ground',0,0,'2026-09-24 18:46:44'),(23,2,'T9',6,'free','First',0,0,'2026-09-24 18:46:44'),(24,2,'T10',6,'free','First',0,0,'2026-09-24 18:46:44'),(25,2,'T11',6,'free','First',0,0,'2026-09-24 18:46:44'),(26,2,'T12',6,'free','First',0,0,'2026-09-24 18:46:44'),(27,2,'VIP-1',8,'free','Rooftop',0,0,'2026-09-24 18:46:44'),(28,2,'VIP-2',8,'free','Rooftop',0,0,'2026-09-24 18:46:44');
+INSERT INTO `restaurant_tables` VALUES (1,1,'T1',2,'free','Ground',0,0,'2026-09-24 19:43:41'),(2,1,'T2',2,'free','Ground',0,0,'2026-09-24 19:43:41'),(3,1,'T3',4,'free','Ground',0,0,'2026-09-24 19:43:41'),(4,1,'T4',4,'free','Ground',0,0,'2026-09-24 19:43:41'),(5,1,'T5',4,'free','Ground',0,0,'2026-09-24 19:43:41'),(6,1,'T6',4,'free','Ground',0,0,'2026-09-24 19:43:41'),(7,1,'T7',4,'free','Ground',0,0,'2026-09-24 19:43:41'),(8,1,'T8',4,'free','Ground',0,0,'2026-09-24 19:43:41'),(9,1,'T9',6,'free','First',0,0,'2026-09-24 19:43:41'),(10,1,'T10',6,'free','First',0,0,'2026-09-24 19:43:41'),(11,1,'T11',6,'free','First',0,0,'2026-09-24 19:43:41'),(12,1,'T12',6,'free','First',0,0,'2026-09-24 19:43:41'),(13,1,'VIP-1',8,'free','Rooftop',0,0,'2026-09-24 19:43:41'),(14,1,'VIP-2',8,'free','Rooftop',0,0,'2026-09-24 19:43:41'),(15,2,'T1',2,'free','Ground',0,0,'2026-09-24 19:43:43'),(16,2,'T2',2,'free','Ground',0,0,'2026-09-24 19:43:43'),(17,2,'T3',4,'free','Ground',0,0,'2026-09-24 19:43:43'),(18,2,'T4',4,'free','Ground',0,0,'2026-09-24 19:43:43'),(19,2,'T5',4,'free','Ground',0,0,'2026-09-24 19:43:43'),(20,2,'T6',4,'free','Ground',0,0,'2026-09-24 19:43:43'),(21,2,'T7',4,'free','Ground',0,0,'2026-09-24 19:43:43'),(22,2,'T8',4,'free','Ground',0,0,'2026-09-24 19:43:43'),(23,2,'T9',6,'free','First',0,0,'2026-09-24 19:43:43'),(24,2,'T10',6,'free','First',0,0,'2026-09-24 19:43:43'),(25,2,'T11',6,'free','First',0,0,'2026-09-24 19:43:43'),(26,2,'T12',6,'free','First',0,0,'2026-09-24 19:43:43'),(27,2,'VIP-1',8,'free','Rooftop',0,0,'2026-09-24 19:43:43'),(28,2,'VIP-2',8,'free','Rooftop',0,0,'2026-09-24 19:43:43');
 /*!40000 ALTER TABLE `restaurant_tables` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -524,7 +598,7 @@ CREATE TABLE `restaurants` (
 
 LOCK TABLES `restaurants` WRITE;
 /*!40000 ALTER TABLE `restaurants` DISABLE KEYS */;
-INSERT INTO `restaurants` VALUES (1,'Sample Restaurant','sample','01-4400000','Thamel, Kathmandu',NULL,1,'2026-09-24 18:46:31'),(2,'Demo Restaurant','demo',NULL,NULL,NULL,1,'2026-09-24 18:46:43');
+INSERT INTO `restaurants` VALUES (1,'Demo Restaurant','demo',NULL,NULL,NULL,1,'2026-09-24 19:43:40'),(2,'Sample Restaurant','sample','01-4400000','Thamel, Kathmandu',NULL,1,'2026-09-24 19:43:42');
 /*!40000 ALTER TABLE `restaurants` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -608,6 +682,10 @@ CREATE TABLE `users` (
   `is_active` tinyint(1) DEFAULT NULL,
   `pin` varchar(255) DEFAULT NULL,
   `last_login` datetime DEFAULT NULL,
+  `last_seen_at` datetime DEFAULT NULL,
+  `session_version` int(11) NOT NULL DEFAULT 0,
+  `shift_start` varchar(5) DEFAULT NULL,
+  `shift_end` varchar(5) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
@@ -623,7 +701,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,1,'admin','$2b$12$zHf2lor4Yz6M4IdRy3fvhOOr3fdppOuRUDtM43z5JWggFxkSrqTkO','Sample Admin','admin',1,'0000',NULL,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(2,1,'cashier1','$2b$12$m2qLoUVhFLgnUNbHwr3eQeWa/wbKMNfZdwkTUpjyyuxwgr..RqTI6','Sita Cashier','cashier',1,'1111',NULL,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(3,1,'waiter1','$2b$12$xlZ7qBXawEirzxVaGU9vNeMb7r1KnyWz9pQXkDKN.x0ccXwzpaplG','Ram Waiter','waiter',1,'2222',NULL,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(4,1,'kitchen1','$2b$12$BIQBmroNubmvEGdBXXvoPeWC9OCswl8hkzCJQMsyq/2JNHWXKEp1W','Hari Kitchen','kitchen',1,'3333',NULL,'2026-09-24 18:46:32','2026-09-24 18:46:32'),(5,NULL,'superadmin','$2b$12$yhhA6FLnFOtMZERQgGDR/.tnqKEQwbxBkUdeL9NpFx0rw5.kMHx9G','Platform Administrator','superadmin',1,NULL,NULL,'2026-09-24 18:46:43','2026-09-24 18:46:43'),(6,2,'admin','$2b$12$EJOz0t.wSVSyCqmzLC2Oeu7FUGRcGOzOkOYToje1F/YFDZTTndFuq','Administrator','admin',1,'0000',NULL,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(7,2,'cashier1','$2b$12$s8n9FlFd/mRiWpZ5XZYXV.lQ/bbxJv0.gG6n/wTgD1KkSlH32Xedi','Sita Cashier','cashier',1,'1111',NULL,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(8,2,'waiter1','$2b$12$L406U7rSDexK093BrJ3w/e0aGIL1ru1qOHTnO6zs0DQP2lxVcwrMC','Ram Waiter','waiter',1,'2222',NULL,'2026-09-24 18:46:44','2026-09-24 18:46:44'),(9,2,'kitchen1','$2b$12$i3pbBicNDC3yCfFKtzQQd.zemThGTucFBhzbIepiRmGs6vykByvMW','Hari Kitchen','kitchen',1,'3333',NULL,'2026-09-24 18:46:44','2026-09-24 18:46:44');
+INSERT INTO `users` VALUES (1,NULL,'superadmin','$2b$12$GwY.Xu972b4EVLSx3FKBPOyZdeqcfhXDTPuKlQ2rB2rXlsC9ljI62','Platform Administrator','superadmin',1,NULL,NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:40','2026-09-24 19:43:40'),(2,1,'admin','$2b$12$FLP4yeoXRKlwNQQQEFlE.ePGhLjC.RSo4hlKn8uXSoLNAQU/PC9LG','Administrator','admin',1,'0000',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(3,1,'cashier1','$2b$12$.4MCnUwT3EM27zZNWIBGaOwuSI7OUfMjAKHU2Wcd1ZeUXPAuqD0ba','Sita Cashier','cashier',1,'1111',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(4,1,'waiter1','$2b$12$EjLXcJDMYfSqHGHl9idwh.43ukCngxu.Egiv0MWP.xej3ZoAK91Um','Ram Waiter','waiter',1,'2222',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(5,1,'kitchen1','$2b$12$l6lStl17HvcvFXYwUw83bOVmbAwVyGv2Phg2JEM2w.CTRAZAIm5lO','Hari Kitchen','kitchen',1,'3333',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:41','2026-09-24 19:43:41'),(6,2,'admin','$2b$12$1.cSlFyT4wL4TnBJxLFJAuqktATn9g8WO4WaGNWuo.QOI0AP4TaL6','Sample Admin','admin',1,'0000',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(7,2,'cashier1','$2b$12$9KNp1tecFOd.ezVnJUheO.wsYO0ZLbxGHCqDSKiG0Lzcvl0L7RH4i','Sita Cashier','cashier',1,'1111',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(8,2,'waiter1','$2b$12$UMOHAdHmGRIpfsjhg0u5RepfwJjZ75FXoxM13RZLl/gilV9/NB3Pu','Ram Waiter','waiter',1,'2222',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:43','2026-09-24 19:43:43'),(9,2,'kitchen1','$2b$12$iYIIRzLv1q7X/gAwxvdvue5GnELArtgZarnLCm9UjsJJRBkskShfC','Hari Kitchen','kitchen',1,'3333',NULL,NULL,0,NULL,NULL,'2026-09-24 19:43:43','2026-09-24 19:43:43');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -636,4 +714,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-09-24 18:46:50
+-- Dump completed

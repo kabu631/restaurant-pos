@@ -8,7 +8,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 7DVqgNz59iVnfUA9wSuHAZgbMYCCYrQWvhfQarLGDwPZ9OArFbxRzlb2gShVjGw
+\restrict BjTWbIdVzT3eouka1kR4DrUyvMQEDHiNLibMlCGeRarMYqfgUkqnoLKNgFam8Jw
 
 -- Dumped from database version 18.4
 -- Dumped by pg_dump version 18.4
@@ -189,6 +189,82 @@ CREATE SEQUENCE public.bills_id_seq
 --
 
 ALTER SEQUENCE public.bills_id_seq OWNED BY public.bills.id;
+
+
+--
+-- Name: cash_movements; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cash_movements (
+    id integer NOT NULL,
+    restaurant_id integer NOT NULL,
+    shift_id integer NOT NULL,
+    kind character varying(5) NOT NULL,
+    amount double precision NOT NULL,
+    reason character varying(200) NOT NULL,
+    user_id integer,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: cash_movements_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.cash_movements_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cash_movements_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.cash_movements_id_seq OWNED BY public.cash_movements.id;
+
+
+--
+-- Name: cash_shifts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cash_shifts (
+    id integer NOT NULL,
+    restaurant_id integer NOT NULL,
+    status character varying(10) NOT NULL,
+    opened_by integer NOT NULL,
+    opened_at timestamp without time zone DEFAULT now(),
+    opening_float double precision NOT NULL,
+    closed_by integer,
+    closed_at timestamp without time zone,
+    expected_cash double precision,
+    counted_cash double precision,
+    difference double precision,
+    notes character varying(500)
+);
+
+
+--
+-- Name: cash_shifts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.cash_shifts_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cash_shifts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.cash_shifts_id_seq OWNED BY public.cash_shifts.id;
 
 
 --
@@ -659,6 +735,10 @@ CREATE TABLE public.users (
     is_active boolean,
     pin character varying,
     last_login timestamp without time zone,
+    last_seen_at timestamp without time zone,
+    session_version integer DEFAULT 0 NOT NULL,
+    shift_start character varying(5),
+    shift_end character varying(5),
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now()
 );
@@ -710,6 +790,20 @@ ALTER TABLE ONLY public.bill_payments ALTER COLUMN id SET DEFAULT nextval('publi
 --
 
 ALTER TABLE ONLY public.bills ALTER COLUMN id SET DEFAULT nextval('public.bills_id_seq'::regclass);
+
+
+--
+-- Name: cash_movements id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_movements ALTER COLUMN id SET DEFAULT nextval('public.cash_movements_id_seq'::regclass);
+
+
+--
+-- Name: cash_shifts id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_shifts ALTER COLUMN id SET DEFAULT nextval('public.cash_shifts_id_seq'::regclass);
 
 
 --
@@ -836,24 +930,40 @@ COPY public.bills (id, restaurant_id, order_id, bill_number, subtotal, discount_
 
 
 --
+-- Data for Name: cash_movements; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.cash_movements (id, restaurant_id, shift_id, kind, amount, reason, user_id, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: cash_shifts; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.cash_shifts (id, restaurant_id, status, opened_by, opened_at, opening_float, closed_by, closed_at, expected_cash, counted_cash, difference, notes) FROM stdin;
+\.
+
+
+--
 -- Data for Name: categories; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.categories (id, restaurant_id, name, display_order, is_active, station, created_at) FROM stdin;
-1	1	Momo & Dumplings	1	t	kitchen	2026-09-24 18:47:23.252253
-2	1	Dal Bhat Set	2	t	kitchen	2026-09-24 18:47:23.260504
-3	1	Noodles & Rice	3	t	kitchen	2026-09-24 18:47:23.26457
-4	1	Grill & Starters	4	t	kitchen	2026-09-24 18:47:23.266074
-5	1	Hot Drinks	5	t	bar	2026-09-24 18:47:23.26796
-6	1	Cold Drinks	6	t	none	2026-09-24 18:47:23.269847
-7	1	Desserts	7	t	kitchen	2026-09-24 18:47:23.27148
-8	2	Momo & Dumplings	1	t	kitchen	2026-09-24 18:47:25.055983
-9	2	Dal Bhat Set	2	t	kitchen	2026-09-24 18:47:25.065463
-10	2	Noodles & Rice	3	t	kitchen	2026-09-24 18:47:25.070245
-11	2	Grill & Starters	4	t	kitchen	2026-09-24 18:47:25.072769
-12	2	Hot Drinks	5	t	bar	2026-09-24 18:47:25.074718
-13	2	Cold Drinks	6	t	none	2026-09-24 18:47:25.076022
-14	2	Desserts	7	t	kitchen	2026-09-24 18:47:25.077192
+1	1	Momo & Dumplings	1	t	kitchen	2026-09-24 19:43:45.762671
+2	1	Dal Bhat Set	2	t	kitchen	2026-09-24 19:43:45.770276
+3	1	Noodles & Rice	3	t	kitchen	2026-09-24 19:43:45.773494
+4	1	Grill & Starters	4	t	kitchen	2026-09-24 19:43:45.77558
+5	1	Hot Drinks	5	t	bar	2026-09-24 19:43:45.777169
+6	1	Cold Drinks	6	t	none	2026-09-24 19:43:45.779737
+7	1	Desserts	7	t	kitchen	2026-09-24 19:43:45.781399
+8	2	Momo & Dumplings	1	t	kitchen	2026-09-24 19:43:47.5744
+9	2	Dal Bhat Set	2	t	kitchen	2026-09-24 19:43:47.581057
+10	2	Noodles & Rice	3	t	kitchen	2026-09-24 19:43:47.583892
+11	2	Grill & Starters	4	t	kitchen	2026-09-24 19:43:47.58524
+12	2	Hot Drinks	5	t	bar	2026-09-24 19:43:47.586593
+13	2	Cold Drinks	6	t	none	2026-09-24 19:43:47.587861
+14	2	Desserts	7	t	kitchen	2026-09-24 19:43:47.58911
 \.
 
 
@@ -878,58 +988,58 @@ COPY public.ingredients (id, restaurant_id, name, unit, current_stock, minimum_s
 --
 
 COPY public.menu_items (id, restaurant_id, category_id, name, name_np, price, variant_type, description, is_vat_applicable, is_available, image_path, display_order, created_at, updated_at) FROM stdin;
-1	1	1	Chicken Momo	चिकेन मम	250	\N	\N	t	t	\N	1	2026-09-24 18:47:23.262742	2026-09-24 18:47:23.262747
-2	1	1	Veg Momo	भेज मम	180	\N	\N	t	t	\N	2	2026-09-24 18:47:23.262749	2026-09-24 18:47:23.26275
-3	1	1	Buff Momo	बफ मम	220	\N	\N	t	t	\N	3	2026-09-24 18:47:23.262751	2026-09-24 18:47:23.262752
-4	1	1	Jhol Momo	झोल मम	280	\N	\N	t	t	\N	4	2026-09-24 18:47:23.262753	2026-09-24 18:47:23.262754
-5	1	1	C-Momo	सी-मम	300	\N	\N	t	t	\N	5	2026-09-24 18:47:23.262755	2026-09-24 18:47:23.262756
-6	1	2	Dal Bhat Set Veg	दाल भात (भेज)	350	\N	\N	t	t	\N	1	2026-09-24 18:47:23.265198	2026-09-24 18:47:23.2652
-7	1	2	Dal Bhat Set Chicken	दाल भात (चिकेन)	450	\N	\N	t	t	\N	2	2026-09-24 18:47:23.265201	2026-09-24 18:47:23.265202
-8	1	2	Dal Bhat Set Mutton	दाल भात (खसी)	550	\N	\N	t	t	\N	3	2026-09-24 18:47:23.265202	2026-09-24 18:47:23.265203
-9	1	3	Chicken Chowmein	चिकेन चाउमिन	200	\N	\N	t	t	\N	1	2026-09-24 18:47:23.26659	2026-09-24 18:47:23.266592
-10	1	3	Veg Chowmein	भेज चाउमिन	160	\N	\N	t	t	\N	2	2026-09-24 18:47:23.266592	2026-09-24 18:47:23.266593
-11	1	3	Fried Rice Chicken	चिकेन फ्राइड राइस	280	\N	\N	t	t	\N	3	2026-09-24 18:47:23.266593	2026-09-24 18:47:23.266594
-12	1	3	Fried Rice Veg	भेज फ्राइड राइस	220	\N	\N	t	t	\N	4	2026-09-24 18:47:23.266594	2026-09-24 18:47:23.266595
-13	1	3	Thukpa	थुक्पा	240	\N	\N	t	t	\N	5	2026-09-24 18:47:23.266595	2026-09-24 18:47:23.266596
-14	1	4	Chicken Sekuwa	चिकेन सेकुवा	400	\N	\N	t	t	\N	1	2026-09-24 18:47:23.268574	2026-09-24 18:47:23.268578
-15	1	4	Paneer Tikka	पनिर टिक्का	350	\N	\N	t	t	\N	2	2026-09-24 18:47:23.26858	2026-09-24 18:47:23.268581
-16	1	4	Chicken Choila	चिकेन छोयला	380	\N	\N	t	t	\N	3	2026-09-24 18:47:23.268582	2026-09-24 18:47:23.268583
-17	1	4	French Fries	फ्रेन्च फ्राइज	180	\N	\N	t	t	\N	4	2026-09-24 18:47:23.268584	2026-09-24 18:47:23.268585
-18	1	5	Milk Tea	दुध चिया	40	\N	\N	t	t	\N	1	2026-09-24 18:47:23.270383	2026-09-24 18:47:23.270387
-19	1	5	Lemon Tea	लेमन टी	60	\N	\N	t	t	\N	2	2026-09-24 18:47:23.270388	2026-09-24 18:47:23.270389
-20	1	5	Black Coffee	कालो कफी	120	\N	\N	t	t	\N	3	2026-09-24 18:47:23.27039	2026-09-24 18:47:23.270391
-21	1	5	Cappuccino	क्यापुचिनो	180	\N	\N	t	t	\N	4	2026-09-24 18:47:23.270391	2026-09-24 18:47:23.270392
-22	1	6	Coke	कोक	80	\N	\N	t	t	\N	1	2026-09-24 18:47:23.271924	2026-09-24 18:47:23.271926
-23	1	6	Fanta	फान्टा	80	\N	\N	t	t	\N	2	2026-09-24 18:47:23.271928	2026-09-24 18:47:23.271928
-24	1	6	Mineral Water	पानी	40	\N	\N	t	t	\N	3	2026-09-24 18:47:23.271929	2026-09-24 18:47:23.27193
-25	1	7	Kheer	खिर	120	\N	\N	t	t	\N	1	2026-09-24 18:47:23.273003	2026-09-24 18:47:23.273005
-26	1	7	Gulab Jamun	गुलाब जामुन	150	\N	\N	t	t	\N	2	2026-09-24 18:47:23.273007	2026-09-24 18:47:23.273008
-27	2	8	Chicken Momo	चिकेन मम	250	\N	\N	t	t	\N	1	2026-09-24 18:47:25.068006	2026-09-24 18:47:25.068011
-28	2	8	Veg Momo	भेज मम	180	\N	\N	t	t	\N	2	2026-09-24 18:47:25.068013	2026-09-24 18:47:25.068014
-29	2	8	Buff Momo	बफ मम	220	\N	\N	t	t	\N	3	2026-09-24 18:47:25.068015	2026-09-24 18:47:25.068016
-30	2	8	Jhol Momo	झोल मम	280	\N	\N	t	t	\N	4	2026-09-24 18:47:25.068017	2026-09-24 18:47:25.068018
-31	2	8	C-Momo	सी-मम	300	\N	\N	t	t	\N	5	2026-09-24 18:47:25.068019	2026-09-24 18:47:25.068019
-32	2	9	Dal Bhat Set Veg	दाल भात (भेज)	350	\N	\N	t	t	\N	1	2026-09-24 18:47:25.071107	2026-09-24 18:47:25.071111
-33	2	9	Dal Bhat Set Chicken	दाल भात (चिकेन)	450	\N	\N	t	t	\N	2	2026-09-24 18:47:25.071113	2026-09-24 18:47:25.071114
-34	2	9	Dal Bhat Set Mutton	दाल भात (खसी)	550	\N	\N	t	t	\N	3	2026-09-24 18:47:25.071115	2026-09-24 18:47:25.071116
-35	2	10	Chicken Chowmein	चिकेन चाउमिन	200	\N	\N	t	t	\N	1	2026-09-24 18:47:25.073595	2026-09-24 18:47:25.073599
-36	2	10	Veg Chowmein	भेज चाउमिन	160	\N	\N	t	t	\N	2	2026-09-24 18:47:25.073601	2026-09-24 18:47:25.073602
-37	2	10	Fried Rice Chicken	चिकेन फ्राइड राइस	280	\N	\N	t	t	\N	3	2026-09-24 18:47:25.073603	2026-09-24 18:47:25.073604
-38	2	10	Fried Rice Veg	भेज फ्राइड राइस	220	\N	\N	t	t	\N	4	2026-09-24 18:47:25.073605	2026-09-24 18:47:25.073606
-39	2	10	Thukpa	थुक्पा	240	\N	\N	t	t	\N	5	2026-09-24 18:47:25.073607	2026-09-24 18:47:25.073607
-40	2	11	Chicken Sekuwa	चिकेन सेकुवा	400	\N	\N	t	t	\N	1	2026-09-24 18:47:25.075214	2026-09-24 18:47:25.075216
-41	2	11	Paneer Tikka	पनिर टिक्का	350	\N	\N	t	t	\N	2	2026-09-24 18:47:25.075217	2026-09-24 18:47:25.075217
-42	2	11	Chicken Choila	चिकेन छोयला	380	\N	\N	t	t	\N	3	2026-09-24 18:47:25.075218	2026-09-24 18:47:25.075218
-43	2	11	French Fries	फ्रेन्च फ्राइज	180	\N	\N	t	t	\N	4	2026-09-24 18:47:25.075219	2026-09-24 18:47:25.075219
-44	2	12	Milk Tea	दुध चिया	40	\N	\N	t	t	\N	1	2026-09-24 18:47:25.076405	2026-09-24 18:47:25.076407
-45	2	12	Lemon Tea	लेमन टी	60	\N	\N	t	t	\N	2	2026-09-24 18:47:25.076408	2026-09-24 18:47:25.076408
-46	2	12	Black Coffee	कालो कफी	120	\N	\N	t	t	\N	3	2026-09-24 18:47:25.076409	2026-09-24 18:47:25.076409
-47	2	12	Cappuccino	क्यापुचिनो	180	\N	\N	t	t	\N	4	2026-09-24 18:47:25.07641	2026-09-24 18:47:25.07641
-48	2	13	Coke	कोक	80	\N	\N	t	t	\N	1	2026-09-24 18:47:25.077532	2026-09-24 18:47:25.077534
-49	2	13	Fanta	फान्टा	80	\N	\N	t	t	\N	2	2026-09-24 18:47:25.077535	2026-09-24 18:47:25.077535
-50	2	13	Mineral Water	पानी	40	\N	\N	t	t	\N	3	2026-09-24 18:47:25.077536	2026-09-24 18:47:25.077536
-51	2	14	Kheer	खिर	120	\N	\N	t	t	\N	1	2026-09-24 18:47:25.078568	2026-09-24 18:47:25.07857
-52	2	14	Gulab Jamun	गुलाब जामुन	150	\N	\N	t	t	\N	2	2026-09-24 18:47:25.07857	2026-09-24 18:47:25.078571
+1	1	1	Chicken Momo	चिकेन मम	250	\N	\N	t	t	\N	1	2026-09-24 19:43:45.771477	2026-09-24 19:43:45.77148
+2	1	1	Veg Momo	भेज मम	180	\N	\N	t	t	\N	2	2026-09-24 19:43:45.77148	2026-09-24 19:43:45.771481
+3	1	1	Buff Momo	बफ मम	220	\N	\N	t	t	\N	3	2026-09-24 19:43:45.771481	2026-09-24 19:43:45.771482
+4	1	1	Jhol Momo	झोल मम	280	\N	\N	t	t	\N	4	2026-09-24 19:43:45.771482	2026-09-24 19:43:45.771483
+5	1	1	C-Momo	सी-मम	300	\N	\N	t	t	\N	5	2026-09-24 19:43:45.771483	2026-09-24 19:43:45.771484
+6	1	2	Dal Bhat Set Veg	दाल भात (भेज)	350	\N	\N	t	t	\N	1	2026-09-24 19:43:45.774223	2026-09-24 19:43:45.774227
+7	1	2	Dal Bhat Set Chicken	दाल भात (चिकेन)	450	\N	\N	t	t	\N	2	2026-09-24 19:43:45.774228	2026-09-24 19:43:45.774229
+8	1	2	Dal Bhat Set Mutton	दाल भात (खसी)	550	\N	\N	t	t	\N	3	2026-09-24 19:43:45.77423	2026-09-24 19:43:45.774231
+9	1	3	Chicken Chowmein	चिकेन चाउमिन	200	\N	\N	t	t	\N	1	2026-09-24 19:43:45.776208	2026-09-24 19:43:45.776211
+10	1	3	Veg Chowmein	भेज चाउमिन	160	\N	\N	t	t	\N	2	2026-09-24 19:43:45.776212	2026-09-24 19:43:45.776213
+11	1	3	Fried Rice Chicken	चिकेन फ्राइड राइस	280	\N	\N	t	t	\N	3	2026-09-24 19:43:45.776213	2026-09-24 19:43:45.776214
+12	1	3	Fried Rice Veg	भेज फ्राइड राइस	220	\N	\N	t	t	\N	4	2026-09-24 19:43:45.776215	2026-09-24 19:43:45.776215
+13	1	3	Thukpa	थुक्पा	240	\N	\N	t	t	\N	5	2026-09-24 19:43:45.776216	2026-09-24 19:43:45.776217
+14	1	4	Chicken Sekuwa	चिकेन सेकुवा	400	\N	\N	t	t	\N	1	2026-09-24 19:43:45.777726	2026-09-24 19:43:45.77773
+15	1	4	Paneer Tikka	पनिर टिक्का	350	\N	\N	t	t	\N	2	2026-09-24 19:43:45.777731	2026-09-24 19:43:45.777732
+16	1	4	Chicken Choila	चिकेन छोयला	380	\N	\N	t	t	\N	3	2026-09-24 19:43:45.777732	2026-09-24 19:43:45.777733
+17	1	4	French Fries	फ्रेन्च फ्राइज	180	\N	\N	t	t	\N	4	2026-09-24 19:43:45.777734	2026-09-24 19:43:45.777734
+18	1	5	Milk Tea	दुध चिया	40	\N	\N	t	t	\N	1	2026-09-24 19:43:45.78033	2026-09-24 19:43:45.780333
+19	1	5	Lemon Tea	लेमन टी	60	\N	\N	t	t	\N	2	2026-09-24 19:43:45.780334	2026-09-24 19:43:45.780334
+20	1	5	Black Coffee	कालो कफी	120	\N	\N	t	t	\N	3	2026-09-24 19:43:45.780335	2026-09-24 19:43:45.780336
+21	1	5	Cappuccino	क्यापुचिनो	180	\N	\N	t	t	\N	4	2026-09-24 19:43:45.780336	2026-09-24 19:43:45.780337
+22	1	6	Coke	कोक	80	\N	\N	t	t	\N	1	2026-09-24 19:43:45.781806	2026-09-24 19:43:45.781809
+23	1	6	Fanta	फान्टा	80	\N	\N	t	t	\N	2	2026-09-24 19:43:45.78181	2026-09-24 19:43:45.781811
+24	1	6	Mineral Water	पानी	40	\N	\N	t	t	\N	3	2026-09-24 19:43:45.781811	2026-09-24 19:43:45.781812
+25	1	7	Kheer	खिर	120	\N	\N	t	t	\N	1	2026-09-24 19:43:45.782687	2026-09-24 19:43:45.782689
+26	1	7	Gulab Jamun	गुलाब जामुन	150	\N	\N	t	t	\N	2	2026-09-24 19:43:45.78269	2026-09-24 19:43:45.782691
+27	2	8	Chicken Momo	चिकेन मम	250	\N	\N	t	t	\N	1	2026-09-24 19:43:47.582423	2026-09-24 19:43:47.582425
+28	2	8	Veg Momo	भेज मम	180	\N	\N	t	t	\N	2	2026-09-24 19:43:47.582426	2026-09-24 19:43:47.582427
+29	2	8	Buff Momo	बफ मम	220	\N	\N	t	t	\N	3	2026-09-24 19:43:47.582427	2026-09-24 19:43:47.582427
+30	2	8	Jhol Momo	झोल मम	280	\N	\N	t	t	\N	4	2026-09-24 19:43:47.582428	2026-09-24 19:43:47.582428
+31	2	8	C-Momo	सी-मम	300	\N	\N	t	t	\N	5	2026-09-24 19:43:47.582429	2026-09-24 19:43:47.582429
+32	2	9	Dal Bhat Set Veg	दाल भात (भेज)	350	\N	\N	t	t	\N	1	2026-09-24 19:43:47.584375	2026-09-24 19:43:47.584377
+33	2	9	Dal Bhat Set Chicken	दाल भात (चिकेन)	450	\N	\N	t	t	\N	2	2026-09-24 19:43:47.584378	2026-09-24 19:43:47.584378
+34	2	9	Dal Bhat Set Mutton	दाल भात (खसी)	550	\N	\N	t	t	\N	3	2026-09-24 19:43:47.584379	2026-09-24 19:43:47.584379
+35	2	10	Chicken Chowmein	चिकेन चाउमिन	200	\N	\N	t	t	\N	1	2026-09-24 19:43:47.585714	2026-09-24 19:43:47.585716
+36	2	10	Veg Chowmein	भेज चाउमिन	160	\N	\N	t	t	\N	2	2026-09-24 19:43:47.585716	2026-09-24 19:43:47.585717
+37	2	10	Fried Rice Chicken	चिकेन फ्राइड राइस	280	\N	\N	t	t	\N	3	2026-09-24 19:43:47.585717	2026-09-24 19:43:47.585718
+38	2	10	Fried Rice Veg	भेज फ्राइड राइस	220	\N	\N	t	t	\N	4	2026-09-24 19:43:47.585718	2026-09-24 19:43:47.585718
+39	2	10	Thukpa	थुक्पा	240	\N	\N	t	t	\N	5	2026-09-24 19:43:47.585719	2026-09-24 19:43:47.585719
+40	2	11	Chicken Sekuwa	चिकेन सेकुवा	400	\N	\N	t	t	\N	1	2026-09-24 19:43:47.587019	2026-09-24 19:43:47.587021
+41	2	11	Paneer Tikka	पनिर टिक्का	350	\N	\N	t	t	\N	2	2026-09-24 19:43:47.587022	2026-09-24 19:43:47.587023
+42	2	11	Chicken Choila	चिकेन छोयला	380	\N	\N	t	t	\N	3	2026-09-24 19:43:47.587023	2026-09-24 19:43:47.587023
+43	2	11	French Fries	फ्रेन्च फ्राइज	180	\N	\N	t	t	\N	4	2026-09-24 19:43:47.587024	2026-09-24 19:43:47.587024
+44	2	12	Milk Tea	दुध चिया	40	\N	\N	t	t	\N	1	2026-09-24 19:43:47.588296	2026-09-24 19:43:47.588298
+45	2	12	Lemon Tea	लेमन टी	60	\N	\N	t	t	\N	2	2026-09-24 19:43:47.588298	2026-09-24 19:43:47.588299
+46	2	12	Black Coffee	कालो कफी	120	\N	\N	t	t	\N	3	2026-09-24 19:43:47.588299	2026-09-24 19:43:47.5883
+47	2	12	Cappuccino	क्यापुचिनो	180	\N	\N	t	t	\N	4	2026-09-24 19:43:47.5883	2026-09-24 19:43:47.588301
+48	2	13	Coke	कोक	80	\N	\N	t	t	\N	1	2026-09-24 19:43:47.589434	2026-09-24 19:43:47.589436
+49	2	13	Fanta	फान्टा	80	\N	\N	t	t	\N	2	2026-09-24 19:43:47.589436	2026-09-24 19:43:47.589437
+50	2	13	Mineral Water	पानी	40	\N	\N	t	t	\N	3	2026-09-24 19:43:47.589437	2026-09-24 19:43:47.589437
+51	2	14	Kheer	खिर	120	\N	\N	t	t	\N	1	2026-09-24 19:43:47.590122	2026-09-24 19:43:47.590124
+52	2	14	Gulab Jamun	गुलाब जामुन	150	\N	\N	t	t	\N	2	2026-09-24 19:43:47.590124	2026-09-24 19:43:47.590125
 \.
 
 
@@ -970,34 +1080,34 @@ COPY public.reservations (id, restaurant_id, table_id, customer_name, customer_p
 --
 
 COPY public.restaurant_tables (id, restaurant_id, table_number, capacity, status, floor, pos_x, pos_y, created_at) FROM stdin;
-1	1	T1	2	free	Ground	0	0	2026-09-24 18:47:23.255068
-2	1	T2	2	free	Ground	0	0	2026-09-24 18:47:23.255071
-3	1	T3	4	free	Ground	0	0	2026-09-24 18:47:23.255072
-4	1	T4	4	free	Ground	0	0	2026-09-24 18:47:23.255073
-5	1	T5	4	free	Ground	0	0	2026-09-24 18:47:23.255073
-6	1	T6	4	free	Ground	0	0	2026-09-24 18:47:23.255074
-7	1	T7	4	free	Ground	0	0	2026-09-24 18:47:23.255074
-8	1	T8	4	free	Ground	0	0	2026-09-24 18:47:23.255075
-9	1	T9	6	free	First	0	0	2026-09-24 18:47:23.255076
-10	1	T10	6	free	First	0	0	2026-09-24 18:47:23.255076
-11	1	T11	6	free	First	0	0	2026-09-24 18:47:23.255077
-12	1	T12	6	free	First	0	0	2026-09-24 18:47:23.255077
-13	1	VIP-1	8	free	Rooftop	0	0	2026-09-24 18:47:23.255078
-14	1	VIP-2	8	free	Rooftop	0	0	2026-09-24 18:47:23.255078
-15	2	T1	2	free	Ground	0	0	2026-09-24 18:47:25.059198
-16	2	T2	2	free	Ground	0	0	2026-09-24 18:47:25.059204
-17	2	T3	4	free	Ground	0	0	2026-09-24 18:47:25.059207
-18	2	T4	4	free	Ground	0	0	2026-09-24 18:47:25.059209
-19	2	T5	4	free	Ground	0	0	2026-09-24 18:47:25.059211
-20	2	T6	4	free	Ground	0	0	2026-09-24 18:47:25.059212
-21	2	T7	4	free	Ground	0	0	2026-09-24 18:47:25.059214
-22	2	T8	4	free	Ground	0	0	2026-09-24 18:47:25.059215
-23	2	T9	6	free	First	0	0	2026-09-24 18:47:25.059216
-24	2	T10	6	free	First	0	0	2026-09-24 18:47:25.059218
-25	2	T11	6	free	First	0	0	2026-09-24 18:47:25.05922
-26	2	T12	6	free	First	0	0	2026-09-24 18:47:25.059221
-27	2	VIP-1	8	free	Rooftop	0	0	2026-09-24 18:47:25.059223
-28	2	VIP-2	8	free	Rooftop	0	0	2026-09-24 18:47:25.059224
+1	1	T1	2	free	Ground	0	0	2026-09-24 19:43:45.765319
+2	1	T2	2	free	Ground	0	0	2026-09-24 19:43:45.765323
+3	1	T3	4	free	Ground	0	0	2026-09-24 19:43:45.765324
+4	1	T4	4	free	Ground	0	0	2026-09-24 19:43:45.765324
+5	1	T5	4	free	Ground	0	0	2026-09-24 19:43:45.765325
+6	1	T6	4	free	Ground	0	0	2026-09-24 19:43:45.765326
+7	1	T7	4	free	Ground	0	0	2026-09-24 19:43:45.765326
+8	1	T8	4	free	Ground	0	0	2026-09-24 19:43:45.765327
+9	1	T9	6	free	First	0	0	2026-09-24 19:43:45.765327
+10	1	T10	6	free	First	0	0	2026-09-24 19:43:45.765328
+11	1	T11	6	free	First	0	0	2026-09-24 19:43:45.765329
+12	1	T12	6	free	First	0	0	2026-09-24 19:43:45.765329
+13	1	VIP-1	8	free	Rooftop	0	0	2026-09-24 19:43:45.76533
+14	1	VIP-2	8	free	Rooftop	0	0	2026-09-24 19:43:45.76533
+15	2	T1	2	free	Ground	0	0	2026-09-24 19:43:47.576493
+16	2	T2	2	free	Ground	0	0	2026-09-24 19:43:47.576496
+17	2	T3	4	free	Ground	0	0	2026-09-24 19:43:47.576497
+18	2	T4	4	free	Ground	0	0	2026-09-24 19:43:47.576498
+19	2	T5	4	free	Ground	0	0	2026-09-24 19:43:47.5765
+20	2	T6	4	free	Ground	0	0	2026-09-24 19:43:47.5765
+21	2	T7	4	free	Ground	0	0	2026-09-24 19:43:47.576501
+22	2	T8	4	free	Ground	0	0	2026-09-24 19:43:47.576502
+23	2	T9	6	free	First	0	0	2026-09-24 19:43:47.576503
+24	2	T10	6	free	First	0	0	2026-09-24 19:43:47.576504
+25	2	T11	6	free	First	0	0	2026-09-24 19:43:47.576505
+26	2	T12	6	free	First	0	0	2026-09-24 19:43:47.576506
+27	2	VIP-1	8	free	Rooftop	0	0	2026-09-24 19:43:47.576506
+28	2	VIP-2	8	free	Rooftop	0	0	2026-09-24 19:43:47.576507
 \.
 
 
@@ -1006,8 +1116,8 @@ COPY public.restaurant_tables (id, restaurant_id, table_number, capacity, status
 --
 
 COPY public.restaurants (id, name, slug, phone, address, vat_number, is_active, created_at) FROM stdin;
-1	Demo Restaurant	demo	\N	\N	\N	t	2026-09-24 18:47:22.398262
-2	Sample Restaurant	sample	01-4400000	Thamel, Kathmandu	\N	t	2026-09-24 18:47:24.213193
+1	Demo Restaurant	demo	\N	\N	\N	t	2026-09-24 19:43:44.877219
+2	Sample Restaurant	sample	01-4400000	Thamel, Kathmandu	\N	t	2026-09-24 19:43:46.660279
 \.
 
 
@@ -1031,16 +1141,16 @@ COPY public.sync_log (id, table_name, record_id, action, data_snapshot, is_synce
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.users (id, restaurant_id, username, password_hash, full_name, role, is_active, pin, last_login, created_at, updated_at) FROM stdin;
-1	\N	superadmin	$2b$12$cojxE1KRmLESj4wxHl2fMekCBSvVYoczTrs/Hu7xYMgMPXUWQQxvu	Platform Administrator	superadmin	t	\N	\N	2026-09-24 18:47:22.389866	2026-09-24 18:47:22.389874
-2	1	admin	$2b$12$L4b6r0yO0mHuDLF/LHlQxuN6DbAM2qlwfLJkWlv88GUTyC5WqFy/2	Administrator	admin	t	0000	\N	2026-09-24 18:47:23.258185	2026-09-24 18:47:23.258191
-3	1	cashier1	$2b$12$uuWF9/pOa1BqwfmQxKu6EeugW9kU5QmNOXe9XhBXSwu.XGuPFN.YC	Sita Cashier	cashier	t	1111	\N	2026-09-24 18:47:23.258192	2026-09-24 18:47:23.258193
-4	1	waiter1	$2b$12$tMj/PFbCTMlEu5yuVv4cz.j16Ivp4nqW0h3L4WOCXiDEJe0I4KERS	Ram Waiter	waiter	t	2222	\N	2026-09-24 18:47:23.258194	2026-09-24 18:47:23.258195
-5	1	kitchen1	$2b$12$Yx/kMdXhZQ1/YEB/rhHJRuFof1jNWezKdNVdSkSm6QpP0yHQabLDi	Hari Kitchen	kitchen	t	3333	\N	2026-09-24 18:47:23.258196	2026-09-24 18:47:23.258197
-6	2	admin	$2b$12$Nw06dN3C5DzKdmk/oZUPReSyn9X9u4UCMJE58gAFg5Ei/LGxkpxj6	Sample Admin	admin	t	0000	\N	2026-09-24 18:47:25.063106	2026-09-24 18:47:25.063111
-7	2	cashier1	$2b$12$csJS4O75woq.NfVY0p1rz.o6Nk/8rP.GHedPLL97WtjqUsWng2oie	Sita Cashier	cashier	t	1111	\N	2026-09-24 18:47:25.063112	2026-09-24 18:47:25.063113
-8	2	waiter1	$2b$12$HqxJosLs5bIY..5x2lcD9uqym9ZmwsHofsy4Epf3vMU8.6gdRP3TC	Ram Waiter	waiter	t	2222	\N	2026-09-24 18:47:25.063114	2026-09-24 18:47:25.063115
-9	2	kitchen1	$2b$12$sIUDeJ4QmKqXjk40lfrHiu1efVRZu1cv8GksVtYau5HcEMPkwEkhW	Hari Kitchen	kitchen	t	3333	\N	2026-09-24 18:47:25.063116	2026-09-24 18:47:25.063117
+COPY public.users (id, restaurant_id, username, password_hash, full_name, role, is_active, pin, last_login, last_seen_at, session_version, shift_start, shift_end, created_at, updated_at) FROM stdin;
+1	\N	superadmin	$2b$12$3w99U2ltirPuGs.O.08AyOS3ogkAXjqJ6Xb/aCDJ3fSN18QNUIuSm	Platform Administrator	superadmin	t	\N	\N	\N	0	\N	\N	2026-09-24 19:43:44.870114	2026-09-24 19:43:44.870124
+2	1	admin	$2b$12$xFtehlUyT.Bj4/uO7o0lnet9B.KhmvapStBlWwLvUsI7/Q8Yby1vC	Administrator	admin	t	0000	\N	\N	0	\N	\N	2026-09-24 19:43:45.768009	2026-09-24 19:43:45.768012
+3	1	cashier1	$2b$12$4bAY79TkVLwoLYWoL8o3He2R5tNMbPAkzE8iv8m7QDvAIULR4sIaC	Sita Cashier	cashier	t	1111	\N	\N	0	\N	\N	2026-09-24 19:43:45.768013	2026-09-24 19:43:45.768013
+4	1	waiter1	$2b$12$zeaWPiFdFekV4NfEOFASnOYyvOcFixd3dMXsheRVR8qRf/b94HHC.	Ram Waiter	waiter	t	2222	\N	\N	0	\N	\N	2026-09-24 19:43:45.768014	2026-09-24 19:43:45.768014
+5	1	kitchen1	$2b$12$u39hFtHqGXA/1Ol0/8Kw7.XCdRBxiE3/MsgFWJEpJHBbSr0kUIBha	Hari Kitchen	kitchen	t	3333	\N	\N	0	\N	\N	2026-09-24 19:43:45.768015	2026-09-24 19:43:45.768015
+6	2	admin	$2b$12$li0tBf6cIuPYkeuK3onVyO18ET881YrVY7iXBmCgrjoPvkBa1Bc7a	Sample Admin	admin	t	0000	\N	\N	0	\N	\N	2026-09-24 19:43:47.579256	2026-09-24 19:43:47.57926
+7	2	cashier1	$2b$12$3rc.1MFWfJscNKNNGYT7LeYGxp/n9Gg/dnis7jDg42sgB4xUdleS6	Sita Cashier	cashier	t	1111	\N	\N	0	\N	\N	2026-09-24 19:43:47.579261	2026-09-24 19:43:47.579261
+8	2	waiter1	$2b$12$KtQ0wxlAFg8wJCpId6IPr.Y4divBt2GLMOA3BmsurQJghjVv4075.	Ram Waiter	waiter	t	2222	\N	\N	0	\N	\N	2026-09-24 19:43:47.579262	2026-09-24 19:43:47.579262
+9	2	kitchen1	$2b$12$mfetzrIb6vdGa1BViDNhxeVVRdurD0fCmkltQFxvmQK02xnrrvVyu	Hari Kitchen	kitchen	t	3333	\N	\N	0	\N	\N	2026-09-24 19:43:47.579263	2026-09-24 19:43:47.579263
 \.
 
 
@@ -1070,6 +1180,20 @@ SELECT pg_catalog.setval('public.bill_payments_id_seq', 1, false);
 --
 
 SELECT pg_catalog.setval('public.bills_id_seq', 1, false);
+
+
+--
+-- Name: cash_movements_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.cash_movements_id_seq', 1, false);
+
+
+--
+-- Name: cash_shifts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.cash_shifts_id_seq', 1, false);
 
 
 --
@@ -1201,6 +1325,22 @@ ALTER TABLE ONLY public.bills
 
 ALTER TABLE ONLY public.bills
     ADD CONSTRAINT bills_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cash_movements cash_movements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_movements
+    ADD CONSTRAINT cash_movements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cash_shifts cash_shifts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_shifts
+    ADD CONSTRAINT cash_shifts_pkey PRIMARY KEY (id);
 
 
 --
@@ -1363,6 +1503,20 @@ CREATE INDEX ix_bill_payments_bill_id ON public.bill_payments USING btree (bill_
 
 
 --
+-- Name: ix_cash_movements_shift_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_cash_movements_shift_id ON public.cash_movements USING btree (shift_id);
+
+
+--
+-- Name: ix_cash_shifts_restaurant_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_cash_shifts_restaurant_id ON public.cash_shifts USING btree (restaurant_id);
+
+
+--
 -- Name: ix_reservations_restaurant_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1439,6 +1593,54 @@ ALTER TABLE ONLY public.bills
 
 ALTER TABLE ONLY public.bills
     ADD CONSTRAINT bills_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+
+
+--
+-- Name: cash_movements cash_movements_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_movements
+    ADD CONSTRAINT cash_movements_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+
+
+--
+-- Name: cash_movements cash_movements_shift_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_movements
+    ADD CONSTRAINT cash_movements_shift_id_fkey FOREIGN KEY (shift_id) REFERENCES public.cash_shifts(id);
+
+
+--
+-- Name: cash_movements cash_movements_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_movements
+    ADD CONSTRAINT cash_movements_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: cash_shifts cash_shifts_closed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_shifts
+    ADD CONSTRAINT cash_shifts_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES public.users(id);
+
+
+--
+-- Name: cash_shifts cash_shifts_opened_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_shifts
+    ADD CONSTRAINT cash_shifts_opened_by_fkey FOREIGN KEY (opened_by) REFERENCES public.users(id);
+
+
+--
+-- Name: cash_shifts cash_shifts_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_shifts
+    ADD CONSTRAINT cash_shifts_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
 
 
 --
@@ -1605,5 +1807,5 @@ ALTER TABLE ONLY public.users
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 7DVqgNz59iVnfUA9wSuHAZgbMYCCYrQWvhfQarLGDwPZ9OArFbxRzlb2gShVjGw
+\unrestrict BjTWbIdVzT3eouka1kR4DrUyvMQEDHiNLibMlCGeRarMYqfgUkqnoLKNgFam8Jw
 

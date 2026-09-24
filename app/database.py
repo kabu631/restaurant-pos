@@ -1,4 +1,5 @@
 import logging
+import re
 from contextlib import contextmanager
 
 from sqlalchemy import Float, String, Text, create_engine, inspect, text
@@ -103,6 +104,10 @@ def _migrate_columns():
         ("orders",      "guests",           "INTEGER"),
         ("orders",      "delivery_address", "VARCHAR"),
         ("categories",  "station",          "VARCHAR DEFAULT 'kitchen'"),
+        ("users",       "last_seen_at",     "TIMESTAMP"),
+        ("users",       "session_version",  "INTEGER NOT NULL DEFAULT 0"),
+        ("users",       "shift_start",      "VARCHAR(5)"),
+        ("users",       "shift_end",        "VARCHAR(5)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -113,7 +118,7 @@ def _migrate_columns():
         if column in {c["name"] for c in inspector.get_columns(table)}:
             continue
         if engine.dialect.name == "mysql":
-            col_type = col_type.replace("VARCHAR", "VARCHAR(255)")
+            col_type = re.sub(r"VARCHAR(?!\()", "VARCHAR(255)", col_type)
         try:
             # One transaction per column so a failure cannot poison the others
             with engine.begin() as conn:

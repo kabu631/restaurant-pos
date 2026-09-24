@@ -3,522 +3,285 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Staff Management — Restaurant POS</title>
+  <title>Staff — Restaurant POS</title>
   <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
   <script src="/static/js/pos.js"></script>
-  <style>
-    .role-admin    { background:#dbeafe; color:#1d4ed8; }
-    .role-cashier  { background:#d1fae5; color:#065f46; }
-    .role-waiter   { background:#fef3c7; color:#92400e; }
-    .role-kitchen  { background:#fce7f3; color:#9d174d; }
-    .modal-overlay { background:rgba(0,0,0,.45); }
-    @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
-    .fade-in { animation:fadeIn .2s ease forwards; }
-  </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col">
+<body class="bg-gray-100 min-h-screen">
 
-<!-- Nav -->
 <div id="pos-nav"></div>
-<div class="bg-white border-b px-4 py-2.5">
-  <h1 class="font-bold text-gray-800">👥 Staff</h1>
-  <span id="nav-user" class="hidden"></span>
-</div>
 
-<main class="flex-1 p-6 max-w-6xl mx-auto w-full">
+<main class="p-3 sm:p-5 max-w-6xl mx-auto space-y-4">
 
-  <!-- Filter + Add row -->
-  <div class="flex flex-wrap items-center gap-3 mb-5">
-    <select id="filter-role" onchange="loadUsers()"
-      class="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
-      <option value="">All Roles</option>
-      <option value="admin">Admin</option>
-      <option value="cashier">Cashier</option>
-      <option value="waiter">Waiter</option>
-      <option value="kitchen">Kitchen</option>
-    </select>
-    <select id="filter-status" onchange="loadUsers()"
-      class="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
-      <option value="">All Status</option>
-      <option value="true">Active</option>
-      <option value="false">Inactive</option>
-    </select>
-    <input id="filter-search" type="text" placeholder="Search name or username…"
-      oninput="renderTable()"
-      class="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 flex-1 min-w-[160px]" />
-    <button onclick="openAddModal()"
-      class="ml-auto bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
-      + Add Staff
-    </button>
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="flex-1 min-w-[14rem]">
+      <h1 class="text-xl font-extrabold text-gray-900">👥 Staff</h1>
+      <p class="text-sm text-gray-500">Add your team, choose their role, and control when they can log in.
+        <a href="/settings#roles" class="text-blue-700 font-medium hover:underline">Change what each role can do →</a></p>
+    </div>
+    <button onclick="openForm()" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm">+ Add staff</button>
   </div>
 
-  <!-- Table card -->
-  <div class="bg-white rounded-xl shadow overflow-hidden">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="bg-gray-50 border-b text-gray-500 text-left text-xs uppercase tracking-wide">
-          <th class="px-5 py-3 font-semibold">Name</th>
-          <th class="px-4 py-3 font-semibold">Username</th>
-          <th class="px-4 py-3 font-semibold">Role</th>
-          <th class="px-4 py-3 font-semibold">PIN</th>
-          <th class="px-4 py-3 font-semibold">Status</th>
-          <th class="px-4 py-3 font-semibold">Last Login</th>
-          <th class="px-4 py-3 font-semibold">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="users-tbody"></tbody>
-    </table>
-    <p id="empty-msg" class="hidden text-center text-gray-400 py-10 text-sm">No staff found.</p>
-    <p id="loading-msg" class="text-center text-gray-400 py-10 text-sm">Loading…</p>
+  <!-- Role summary -->
+  <section id="roles" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></section>
+
+  <!-- Filter -->
+  <div class="flex flex-wrap items-center gap-2">
+    <div id="filters" class="flex gap-1 bg-white rounded-xl p-1 shadow-sm overflow-x-auto"></div>
+    <input id="search" type="search" placeholder="Search name or username" class="border rounded-xl px-3 py-2 text-sm flex-1 min-w-[10rem] max-w-xs">
+    <span id="online-now" class="text-sm text-gray-500"></span>
   </div>
+
+  <section id="grid" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));"></section>
+  <div id="empty" class="hidden text-center py-16 text-gray-500">No staff match this filter.</div>
 </main>
 
-
-<!-- ═══════════════════════════ ADD / EDIT MODAL ═══════════════════════════ -->
-<div id="modal-staff" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md fade-in">
-    <div class="px-6 py-4 border-b flex items-center justify-between">
-      <h3 id="modal-title" class="font-bold text-lg text-gray-800">Add Staff</h3>
-      <button onclick="closeModal('modal-staff')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-    </div>
-    <div class="px-6 py-5 space-y-4">
-      <div id="modal-error" class="hidden bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-2"></div>
-
-      <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">Full Name *</label>
-        <input id="f-full-name" type="text"
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Ram Prasad Sharma" />
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-600 mb-1">Username *</label>
-          <input id="f-username" type="text"
-            class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="ram.sharma" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-600 mb-1">Role *</label>
-          <select id="f-role"
-            class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="waiter">Waiter</option>
-            <option value="cashier">Cashier</option>
-            <option value="kitchen">Kitchen</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">
-          Password <span id="pw-required-label" class="text-red-500">*</span>
-          <span id="pw-optional-label" class="hidden text-gray-400 font-normal">(leave blank to keep current)</span>
-        </label>
-        <input id="f-password" type="password" minlength="6"
-          class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Min 6 characters" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">
-          4-Digit PIN <span class="text-gray-400 font-normal">(optional — for quick POS login)</span>
-        </label>
-        <input id="f-pin" type="text" maxlength="4" pattern="\d{4}"
-          oninput="this.value=this.value.replace(/\D/g,'')"
-          class="w-full border rounded-lg px-3 py-2 text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="0000" />
-      </div>
-    </div>
-    <div class="px-6 pb-5 flex justify-end gap-3">
-      <button onclick="closeModal('modal-staff')"
-        class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">Cancel</button>
-      <button id="modal-save-btn" onclick="saveStaff()"
-        class="px-5 py-2 text-sm rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Save</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- ═══════════════════════════ RESET PASSWORD MODAL ══════════════════════ -->
-<div id="modal-reset-pw" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm fade-in">
-    <div class="px-6 py-4 border-b flex items-center justify-between">
-      <h3 class="font-bold text-gray-800">Reset Password</h3>
-      <button onclick="closeModal('modal-reset-pw')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-    </div>
-    <div class="px-6 py-5 space-y-3">
-      <p id="reset-pw-name" class="text-sm text-gray-500"></p>
-      <div id="reset-pw-error" class="hidden bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-2"></div>
-      <input id="new-password" type="password" placeholder="New password (min 6 chars)"
-        class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-    </div>
-    <div class="px-6 pb-5 flex justify-end gap-3">
-      <button onclick="closeModal('modal-reset-pw')"
-        class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">Cancel</button>
-      <button onclick="doResetPassword()"
-        class="px-5 py-2 text-sm rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold">Reset</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- ═══════════════════════════ RESET PIN MODAL ═══════════════════════════ -->
-<div id="modal-reset-pin" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm fade-in">
-    <div class="px-6 py-4 border-b flex items-center justify-between">
-      <h3 class="font-bold text-gray-800">Reset PIN</h3>
-      <button onclick="closeModal('modal-reset-pin')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-    </div>
-    <div class="px-6 py-5 space-y-3">
-      <p id="reset-pin-name" class="text-sm text-gray-500"></p>
-      <div id="reset-pin-error" class="hidden bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-2"></div>
-      <input id="new-pin" type="text" maxlength="4" pattern="\d{4}"
-        oninput="this.value=this.value.replace(/\D/g,'')"
-        class="w-full border rounded-lg px-3 py-2 text-sm font-mono tracking-widest text-center text-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder="0000" />
-    </div>
-    <div class="px-6 pb-5 flex justify-end gap-3">
-      <button onclick="closeModal('modal-reset-pin')"
-        class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">Cancel</button>
-      <button onclick="doResetPin()"
-        class="px-5 py-2 text-sm rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-semibold">Set PIN</button>
-    </div>
-  </div>
-</div>
-
-
 <script>
-  const token = localStorage.getItem('token');
+const { api, esc, toast, fail } = POS;
+
+// What each role is for — shown when picking a role
+const ROLES = {
+  admin:   { icon: '👑', label: 'Admin', color: 'blue',
+             does: 'The boss. Can do everything: staff, menu, tables, stock, reports, settings, and approve discounts and voids.' },
+  cashier: { icon: '💳', label: 'Cashier', color: 'green',
+             does: 'Takes payment and prints the final bill. Runs the cash drawer. Can also ring up takeaway orders.' },
+  waiter:  { icon: '🧑‍🍳', label: 'Waiter', color: 'amber',
+             does: 'Opens tables, takes orders and sends them to the kitchen, serves food, handles bookings.' },
+  kitchen: { icon: '🔥', label: 'Kitchen', color: 'rose',
+             does: 'Sees new orders on the kitchen screen, accepts them, marks food ready, and marks dishes sold out.' },
+};
+const BADGE = {
+  blue: 'bg-blue-100 text-blue-800', green: 'bg-green-100 text-green-800',
+  amber: 'bg-amber-100 text-amber-800', rose: 'bg-rose-100 text-rose-800',
+};
+const AVATAR = { blue: 'bg-blue-600', green: 'bg-green-600', amber: 'bg-amber-500', rose: 'bg-rose-600' };
+const PERM_LABELS = {};     // key → label, from /api/permissions
+
+let USERS = [];
+let filter = 'all';
+
+async function init() {
+  if (!POS.requireLogin() || !POS.isAdmin()) { location.href = POS.user().home || '/login'; return; }
   POS.nav('/users');
-  const me    = JSON.parse(localStorage.getItem('user') || '{}');
+  document.getElementById('search').oninput = POS.debounce(render, 150);
+  try {
+    const cat = await api('/api/permissions');
+    cat.permissions.forEach(p => PERM_LABELS[p.key] = p.label);
+  } catch { /* labels are optional */ }
+  await load();
+  setInterval(() => { if (!document.hidden) load(); }, 30000);
+}
 
-  if (!token || !['admin', 'superadmin'].includes(me.role)) {
-    window.location.href = '/login';
-  }
+async function load() {
+  try { USERS = await api('/api/users'); } catch (e) { fail(e); return; }
+  render();
+}
 
-  document.getElementById('nav-user').textContent = me.full_name || me.username || '';
+function ago(iso) {
+  if (!iso) return 'never';
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 24 * 60) return `${Math.floor(mins / 60)} h ago`;
+  if (mins < 7 * 24 * 60) return `${Math.floor(mins / 1440)} day(s) ago`;
+  return POS.date(iso);
+}
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  let allUsers  = [];
-  let editingId = null;
-  let actionId  = null;
+function render() {
+  const active = USERS.filter(u => u.is_active);
+  // Role summary cards
+  document.getElementById('roles').innerHTML = Object.entries(ROLES).map(([k, r]) => {
+    const people = active.filter(u => u.role === k);
+    const online = people.filter(u => u.online).length;
+    return `<button onclick="setFilter('${k}')" class="text-left bg-white rounded-2xl shadow-sm p-4 border-2 ${filter === k ? 'border-blue-500' : 'border-transparent'} hover:shadow-md transition">
+      <div class="flex items-center justify-between">
+        <span class="text-2xl">${r.icon}</span>
+        ${online ? `<span class="text-xs font-semibold text-green-700 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span>${online} online</span>` : ''}
+      </div>
+      <p class="mt-1 font-bold text-gray-900">${people.length} ${r.label}${people.length === 1 ? '' : 's'}</p>
+      <p class="text-xs text-gray-500 line-clamp-2">${esc(r.does)}</p>
+    </button>`;
+  }).join('');
 
-  // ── API helper ─────────────────────────────────────────────────────────────
-  async function api(path, opts = {}) {
-    return fetch(path, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json',
-                 ...(opts.headers || {}) },
-      ...opts,
-    });
-  }
+  const counts = { all: active.length, inactive: USERS.length - active.length };
+  document.getElementById('filters').innerHTML = [['all', `All (${counts.all})`], ...Object.entries(ROLES).map(([k, r]) => [k, r.label]), ['inactive', `Inactive (${counts.inactive})`]]
+    .map(([k, label]) => `<button onclick="setFilter('${k}')" class="px-3 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap ${filter === k ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">${esc(label)}</button>`).join('');
 
-  // ── Role badge ─────────────────────────────────────────────────────────────
-  function roleBadge(role) {
-    const labels = { admin:'Admin', cashier:'Cashier', waiter:'Waiter', kitchen:'Kitchen' };
-    return `<span class="text-xs font-bold px-2 py-0.5 rounded-full role-${role}">${labels[role] || role}</span>`;
-  }
+  const onlineNow = active.filter(u => u.online).length;
+  document.getElementById('online-now').innerHTML = onlineNow
+    ? `<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>${onlineNow} online now</span>` : '';
 
-  // ── Load users ─────────────────────────────────────────────────────────────
-  async function loadUsers() {
-    document.getElementById('loading-msg').classList.remove('hidden');
-    document.getElementById('empty-msg').classList.add('hidden');
-    document.getElementById('users-tbody').innerHTML = '';
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const shown = USERS.filter(u =>
+    (filter === 'all' ? u.is_active : filter === 'inactive' ? !u.is_active : (u.is_active && u.role === filter)) &&
+    (!q || u.full_name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)));
+  document.getElementById('empty').classList.toggle('hidden', shown.length > 0);
+  document.getElementById('grid').innerHTML = shown.map(card).join('');
+}
 
-    const role   = document.getElementById('filter-role').value;
-    const status = document.getElementById('filter-status').value;
-    let url = '/api/users';
-    const params = [];
-    if (role)   params.push(`role=${encodeURIComponent(role)}`);
-    if (status) params.push(`is_active=${status}`);
-    if (params.length) url += '?' + params.join('&');
+function setFilter(f) { filter = filter === f && f !== 'all' ? 'all' : f; render(); }
 
-    const res = await api(url);
-    document.getElementById('loading-msg').classList.add('hidden');
-    if (!res.ok) { alert('Failed to load staff list'); return; }
-    allUsers = await res.json();
-    renderTable();
-  }
+function card(u) {
+  const r = ROLES[u.role] || { icon: '👤', label: u.role, color: 'blue' };
+  const me = u.id === POS.user().id;
+  const initials = u.full_name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const perms = (u.permissions || []);
+  const permText = perms.includes('*') ? 'Everything'
+    : perms.length ? perms.map(p => PERM_LABELS[p] || p).join(' · ') : 'Nothing yet — set it in Roles & permissions';
+  const hours = u.shift_start ? `🕘 ${u.shift_start}–${u.shift_end}` : '🕘 Any time';
+  return `
+  <article class="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 ${u.is_active ? '' : 'opacity-60'}">
+    <div class="flex items-start gap-3">
+      <div class="relative shrink-0">
+        <div class="w-12 h-12 rounded-full ${AVATAR[r.color]} text-white font-bold flex items-center justify-center">${esc(initials)}</div>
+        ${u.online ? '<span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-white" title="Online now"></span>' : ''}
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="font-bold text-gray-900 truncate">${esc(u.full_name)}${me ? ' <span class="text-xs font-normal text-gray-500">(you)</span>' : ''}</p>
+        <p class="text-xs text-gray-500">@${esc(u.username)}</p>
+        <div class="flex flex-wrap gap-1 mt-1.5">
+          <span class="text-[11px] font-bold rounded-full px-2 py-0.5 ${BADGE[r.color]}">${r.icon} ${esc(r.label)}</span>
+          ${u.is_active ? '' : '<span class="text-[11px] font-bold rounded-full px-2 py-0.5 bg-gray-200 text-gray-700">Inactive</span>'}
+          ${u.has_pin ? '<span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-100 text-gray-600">🔢 PIN</span>' : '<span class="text-[11px] rounded-full px-2 py-0.5 bg-amber-50 text-amber-700">No PIN</span>'}
+          <span class="text-[11px] rounded-full px-2 py-0.5 ${u.can_login_now ? 'bg-gray-100 text-gray-600' : 'bg-red-50 text-red-700'}" title="${u.can_login_now ? 'Can log in now' : 'Outside login hours right now'}">${hours}</span>
+        </div>
+      </div>
+    </div>
+    <p class="text-xs text-gray-600"><span class="font-semibold text-gray-500">Can:</span> ${esc(permText)}</p>
+    <p class="text-xs text-gray-500">${u.online ? '<span class="text-green-700 font-semibold">● Online now</span>' : `Last active ${ago(u.last_seen_at || u.last_login)}`}</p>
+    <div class="flex flex-wrap gap-1.5 mt-auto pt-2 border-t">
+      <button onclick="openForm(${u.id})" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-semibold">✏️ Edit</button>
+      <button onclick="resetPin(${u.id})" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">🔢 PIN</button>
+      <button onclick="resetPassword(${u.id})" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">🔒 Password</button>
+      ${!me && u.is_active ? `<button onclick="signOut(${u.id})" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm" title="Log them out on every device">🚪 Sign out</button>` : ''}
+      ${me ? '' : u.is_active
+        ? `<button onclick="setActive(${u.id}, false)" class="px-3 py-1.5 rounded-lg text-red-600 hover:bg-red-50 text-sm ml-auto">Deactivate</button>`
+        : `<button onclick="setActive(${u.id}, true)" class="px-3 py-1.5 rounded-lg text-green-700 hover:bg-green-50 text-sm font-semibold ml-auto">Re-activate</button>`}
+    </div>
+  </article>`;
+}
 
-  // ── Render table ───────────────────────────────────────────────────────────
-  function renderTable() {
-    const q = document.getElementById('filter-search').value.toLowerCase();
-    const filtered = allUsers.filter(u =>
-      u.full_name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)
-    );
-
-    const tbody = document.getElementById('users-tbody');
-    const empty = document.getElementById('empty-msg');
-
-    if (!filtered.length) { empty.classList.remove('hidden'); tbody.innerHTML = ''; return; }
-    empty.classList.add('hidden');
-
-    const isSelf = (u) => u.id === me.id;
-
-    tbody.innerHTML = filtered.map(u => `
-      <tr class="border-b hover:bg-gray-50 transition-colors ${u.role === 'admin' ? 'bg-blue-50/30' : ''}">
-        <td class="px-5 py-3">
-          <div class="font-medium text-gray-800">${esc(u.full_name)}</div>
-          ${isSelf(u) ? '<span class="text-xs text-blue-500 font-semibold">(you)</span>' : ''}
-        </td>
-        <td class="px-4 py-3 font-mono text-xs text-gray-600">${esc(u.username)}</td>
-        <td class="px-4 py-3">${roleBadge(u.role)}</td>
-        <td class="px-4 py-3 text-center">
-          ${u.has_pin
-            ? '<span class="text-green-600 text-xs font-bold">✓ Set</span>'
-            : '<span class="text-gray-300 text-xs">—</span>'}
-        </td>
-        <td class="px-4 py-3">
-          <span class="text-xs font-bold px-2 py-0.5 rounded-full ${u.is_active
-            ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">
-            ${u.is_active ? 'Active' : 'Inactive'}
-          </span>
-        </td>
-        <td class="px-4 py-3 text-xs text-gray-400">
-          ${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}
-        </td>
-        <td class="px-4 py-3">
-          <div class="flex flex-wrap gap-1.5">
-            <button onclick="openEditModal(${u.id})"
-              class="text-xs px-2.5 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50">
-              Edit
-            </button>
-            <button onclick="openResetPassword(${u.id}, '${esc(u.full_name)}')"
-              class="text-xs px-2.5 py-1 rounded border border-orange-300 text-orange-600 hover:bg-orange-50">
-              Password
-            </button>
-            <button onclick="openResetPin(${u.id}, '${esc(u.full_name)}')"
-              class="text-xs px-2.5 py-1 rounded border border-purple-300 text-purple-600 hover:bg-purple-50">
-              PIN
-            </button>
-            ${isSelf(u) ? '' : `
-            <button onclick="toggleActive(${u.id}, ${u.is_active})"
-              class="text-xs px-2.5 py-1 rounded border ${u.is_active
-                ? 'border-red-300 text-red-600 hover:bg-red-50'
-                : 'border-green-300 text-green-600 hover:bg-green-50'}">
-              ${u.is_active ? 'Deactivate' : 'Activate'}
-            </button>`}
-          </div>
-        </td>
-      </tr>`).join('');
-  }
-
-  // ── XSS escape ─────────────────────────────────────────────────────────────
-  function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-                    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  // ── Modal helpers ──────────────────────────────────────────────────────────
-  function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
-  function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-  function clearModalError(errId) {
-    const el = document.getElementById(errId);
-    el.textContent = '';
-    el.classList.add('hidden');
-  }
-  function showModalError(errId, msg) {
-    const el = document.getElementById(errId);
-    el.textContent = msg;
-    el.classList.remove('hidden');
-  }
-
-  // ── Add modal ──────────────────────────────────────────────────────────────
-  function openAddModal() {
-    editingId = null;
-    document.getElementById('modal-title').textContent = 'Add Staff Member';
-    document.getElementById('f-full-name').value = '';
-    document.getElementById('f-username').value  = '';
-    document.getElementById('f-password').value  = '';
-    document.getElementById('f-pin').value       = '';
-    document.getElementById('f-role').value      = 'waiter';
-    document.getElementById('pw-required-label').classList.remove('hidden');
-    document.getElementById('pw-optional-label').classList.add('hidden');
-    document.getElementById('f-password').required = true;
-    clearModalError('modal-error');
-    openModal('modal-staff');
-    document.getElementById('f-full-name').focus();
-  }
-
-  // ── Edit modal ─────────────────────────────────────────────────────────────
-  function openEditModal(id) {
-    const u = allUsers.find(x => x.id === id);
-    if (!u) return;
-    editingId = id;
-    document.getElementById('modal-title').textContent = 'Edit Staff Member';
-    document.getElementById('f-full-name').value = u.full_name;
-    document.getElementById('f-username').value  = u.username;
-    document.getElementById('f-password').value  = '';
-    document.getElementById('f-pin').value       = '';
-    document.getElementById('f-role').value      = u.role;
-    document.getElementById('pw-required-label').classList.add('hidden');
-    document.getElementById('pw-optional-label').classList.remove('hidden');
-    document.getElementById('f-password').required = false;
-    clearModalError('modal-error');
-    openModal('modal-staff');
-    document.getElementById('f-full-name').focus();
-  }
-
-  // ── Save (add or edit) ─────────────────────────────────────────────────────
-  async function saveStaff() {
-    const btn = document.getElementById('modal-save-btn');
-    clearModalError('modal-error');
-
-    const fullName = document.getElementById('f-full-name').value.trim();
-    const username = document.getElementById('f-username').value.trim();
-    const password = document.getElementById('f-password').value;
-    const role     = document.getElementById('f-role').value;
-    const pin      = document.getElementById('f-pin').value.trim();
-
-    if (!fullName || !username || !role) {
-      return showModalError('modal-error', 'Full name, username, and role are required.');
-    }
-    if (!editingId && !password) {
-      return showModalError('modal-error', 'Password is required for new staff.');
-    }
-    if (password && password.length < 6) {
-      return showModalError('modal-error', 'Password must be at least 6 characters.');
-    }
-    if (pin && (!/^\d{4}$/.test(pin))) {
-      return showModalError('modal-error', 'PIN must be exactly 4 digits.');
-    }
-
-    btn.textContent = 'Saving…';
-    btn.disabled = true;
-
-    try {
-      let res, data;
-      if (!editingId) {
-        // Create
-        const body = { full_name: fullName, username, password, role };
-        if (pin) body.pin = pin;
-        res  = await api('/api/users', { method: 'POST', body: JSON.stringify(body) });
-        data = await res.json();
-      } else {
-        // Update
-        const body = { full_name: fullName, username, role };
-        if (pin) body.pin = pin;
-        res  = await api(`/api/users/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
-        data = await res.json();
-
-        // Reset password separately if provided
-        if (password) {
-          const pwRes = await api(`/api/users/${editingId}/reset-password`, {
-            method: 'PATCH',
-            body: JSON.stringify({ new_password: password }),
-          });
-          if (!pwRes.ok) {
-            const pwData = await pwRes.json();
-            return showModalError('modal-error', pwData.detail || 'Password reset failed.');
-          }
-        }
-      }
-
-      if (!res.ok) {
-        return showModalError('modal-error', data.detail || 'Save failed.');
-      }
-
-      closeModal('modal-staff');
-      loadUsers();
-    } catch {
-      showModalError('modal-error', 'Connection error. Try again.');
-    } finally {
-      btn.textContent = 'Save';
-      btn.disabled = false;
-    }
-  }
-
-  // ── Toggle active ──────────────────────────────────────────────────────────
-  async function toggleActive(id, currentlyActive) {
-    const action = currentlyActive ? 'deactivate' : 'activate';
-    const u = allUsers.find(x => x.id === id);
-    const msg = currentlyActive
-      ? `Deactivate ${u?.full_name}? They won't be able to log in.`
-      : `Activate ${u?.full_name}?`;
-    if (!confirm(msg)) return;
-    const res = await api(`/api/users/${id}/${action}`, { method: 'PATCH' });
-    if (res.ok) {
-      loadUsers();
-    } else {
-      const d = await res.json();
-      alert(d.detail || 'Action failed');
-    }
-  }
-
-  // ── Reset password modal ───────────────────────────────────────────────────
-  function openResetPassword(id, name) {
-    actionId = id;
-    document.getElementById('reset-pw-name').textContent = `For: ${name}`;
-    document.getElementById('new-password').value = '';
-    clearModalError('reset-pw-error');
-    openModal('modal-reset-pw');
-    document.getElementById('new-password').focus();
-  }
-
-  async function doResetPassword() {
-    clearModalError('reset-pw-error');
-    const pw = document.getElementById('new-password').value;
-    if (!pw || pw.length < 6) return showModalError('reset-pw-error', 'Password must be at least 6 characters.');
-    const res = await api(`/api/users/${actionId}/reset-password`, {
-      method: 'PATCH',
-      body: JSON.stringify({ new_password: pw }),
-    });
-    if (res.ok) {
-      closeModal('modal-reset-pw');
-      alert('Password reset successfully.');
-    } else {
-      const d = await res.json();
-      showModalError('reset-pw-error', d.detail || 'Reset failed.');
-    }
-  }
-
-  // ── Reset PIN modal ────────────────────────────────────────────────────────
-  function openResetPin(id, name) {
-    actionId = id;
-    document.getElementById('reset-pin-name').textContent = `For: ${name}`;
-    document.getElementById('new-pin').value = '';
-    clearModalError('reset-pin-error');
-    openModal('modal-reset-pin');
-    document.getElementById('new-pin').focus();
-  }
-
-  async function doResetPin() {
-    clearModalError('reset-pin-error');
-    const pin = document.getElementById('new-pin').value.trim();
-    if (!/^\d{4}$/.test(pin)) return showModalError('reset-pin-error', 'PIN must be exactly 4 digits.');
-    const res = await api(`/api/users/${actionId}/reset-pin`, {
-      method: 'PATCH',
-      body: JSON.stringify({ new_pin: pin }),
-    });
-    if (res.ok) {
-      closeModal('modal-reset-pin');
-      alert('PIN reset successfully.');
-      loadUsers();
-    } else {
-      const d = await res.json();
-      showModalError('reset-pin-error', d.detail || 'Reset failed.');
-    }
-  }
-
-  // ── Close on backdrop click ────────────────────────────────────────────────
-  ['modal-staff','modal-reset-pw','modal-reset-pin'].forEach(id => {
-    document.getElementById(id).addEventListener('click', function(e) {
-      if (e.target === this) closeModal(id);
-    });
+// ── Add / edit ───────────────────────────────────────────────────────────────
+function openForm(id) {
+  const u = id ? USERS.find(x => x.id === id) : null;
+  const role = u ? u.role : 'waiter';
+  POS.modal(`
+    <form class="space-y-4">
+      <h2 class="text-lg font-bold text-gray-900">${u ? 'Edit ' + esc(u.full_name) : 'Add staff member'}</h2>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="col-span-2 text-sm font-medium text-gray-700">Full name
+          <input name="full_name" required value="${esc(u ? u.full_name : '')}" class="mt-1 w-full border rounded-xl px-3 py-2.5" placeholder="Sita Sharma"></label>
+        <label class="text-sm font-medium text-gray-700">Username
+          <input name="username" required value="${esc(u ? u.username : '')}" autocomplete="off" class="mt-1 w-full border rounded-xl px-3 py-2.5" placeholder="sita"></label>
+        <label class="text-sm font-medium text-gray-700">PIN ${u && u.has_pin ? '<span class="text-xs text-gray-400">(blank = keep)</span>' : ''}
+          <input name="pin" inputmode="numeric" maxlength="4" autocomplete="off" class="mt-1 w-full border rounded-xl px-3 py-2.5 tracking-widest" placeholder="4 digits"></label>
+        ${u ? '' : `<label class="col-span-2 text-sm font-medium text-gray-700">Password
+          <input name="password" type="password" required minlength="6" autocomplete="new-password" class="mt-1 w-full border rounded-xl px-3 py-2.5" placeholder="At least 6 characters"></label>`}
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-700 mb-1.5">Role</p>
+        <div class="grid gap-2">
+          ${Object.entries(ROLES).map(([k, r]) => `
+          <label class="flex gap-3 items-start border-2 rounded-xl p-3 cursor-pointer has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+            <input type="radio" name="role" value="${k}" class="mt-1 accent-blue-600" ${k === role ? 'checked' : ''}>
+            <span><span class="font-semibold">${r.icon} ${r.label}</span><span class="block text-xs text-gray-600">${esc(r.does)}</span></span>
+          </label>`).join('')}
+        </div>
+      </div>
+      <div>
+        <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input type="checkbox" name="limit_hours" class="w-4 h-4 accent-blue-600" ${u && u.shift_start ? 'checked' : ''}> Only allow login during these hours
+        </label>
+        <div data-hours class="flex items-center gap-2 mt-2 ${u && u.shift_start ? '' : 'hidden'}">
+          <input name="shift_start" type="time" value="${esc(u && u.shift_start || '09:00')}" class="border rounded-xl px-3 py-2">
+          <span class="text-gray-500">to</span>
+          <input name="shift_end" type="time" value="${esc(u && u.shift_end || '17:00')}" class="border rounded-xl px-3 py-2">
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Nepal time. Overnight shifts work too (e.g. 18:00 to 02:00). Admins can always log in.</p>
+      </div>
+      <p data-err class="hidden text-sm text-red-600"></p>
+      <div class="flex gap-2">
+        <button type="button" data-x class="flex-1 py-3 rounded-xl border font-medium">Cancel</button>
+        <button class="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold">${u ? 'Save' : 'Add staff'}</button>
+      </div>
+    </form>`, {
+    wide: true,
+    onMount: (w, close) => {
+      const f = w.querySelector('form');
+      const err = w.querySelector('[data-err]');
+      w.querySelector('[data-x]').onclick = () => close(null);
+      f.limit_hours.onchange = () => w.querySelector('[data-hours]').classList.toggle('hidden', !f.limit_hours.checked);
+      f.pin.oninput = () => { f.pin.value = f.pin.value.replace(/\D/g, ''); };
+      f.onsubmit = async e => {
+        e.preventDefault();
+        err.classList.add('hidden');
+        const body = {
+          full_name: f.full_name.value.trim(), username: f.username.value.trim(), role: f.role.value,
+          shift_start: f.limit_hours.checked ? f.shift_start.value : '',
+          shift_end: f.limit_hours.checked ? f.shift_end.value : '',
+        };
+        if (f.pin.value) body.pin = f.pin.value;
+        if (!u) body.password = f.password.value;
+        if (u && u.role !== body.role && !(await POS.confirm(
+          `${u.full_name} will be logged out and sign in again as ${ROLES[body.role].label}.`, { title: 'Change role?' }))) return;
+        try {
+          if (u) await api(`/api/users/${u.id}`, { method: 'PUT', body });
+          else await api('/api/users', { method: 'POST', body });
+          toast(u ? 'Saved' : `${body.full_name} added — they can log in now`);
+          close(true);
+          load();
+        } catch (e2) { err.textContent = e2.message; err.classList.remove('hidden'); }
+      };
+      setTimeout(() => f.full_name.focus(), 30);
+    },
   });
+}
 
-  // ── Enter key for modals ───────────────────────────────────────────────────
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      ['modal-staff','modal-reset-pw','modal-reset-pin'].forEach(closeModal);
-    }
-  });
+async function resetPin(id) {
+  const u = USERS.find(x => x.id === id);
+  const pin = await POS.prompt(`New PIN for ${u.full_name}`, {
+    message: '4 digits, used to log in quickly on shared tills. Each person needs a different PIN.',
+    inputmode: 'numeric', placeholder: '••••', required: true, okText: 'Set PIN' });
+  if (!pin) return;
+  try {
+    await api(`/api/users/${id}/reset-pin`, { method: 'PATCH', body: { new_pin: pin } });
+    toast('PIN updated'); load();
+  } catch (e) { fail(e); }
+}
 
-  function logout() {
-    localStorage.clear();
-    window.location.href = '/login';
-  }
+async function resetPassword(id) {
+  const u = USERS.find(x => x.id === id);
+  const pw = await POS.prompt(`New password for ${u.full_name}`, {
+    message: u.id === POS.user().id ? 'At least 6 characters.' : 'At least 6 characters. They will be logged out on every device.',
+    type: 'password', required: true, okText: 'Set password' });
+  if (!pw) return;
+  try {
+    await api(`/api/users/${id}/reset-password`, { method: 'PATCH', body: { new_password: pw } });
+    toast('Password updated'); load();
+  } catch (e) { fail(e); }
+}
 
-  // ── Init ───────────────────────────────────────────────────────────────────
-  loadUsers();
+async function signOut(id) {
+  const u = USERS.find(x => x.id === id);
+  if (!(await POS.confirm(`${u.full_name} will be logged out on every phone, tablet and PC right away. They can log in again.`,
+    { title: 'Sign out everywhere?', okText: 'Sign out' }))) return;
+  try {
+    await api(`/api/users/${id}/sign-out`, { method: 'POST' });
+    toast(`${u.full_name} signed out`); load();
+  } catch (e) { fail(e); }
+}
+
+async function setActive(id, on) {
+  const u = USERS.find(x => x.id === id);
+  if (!on && !(await POS.confirm(`${u.full_name} won't be able to log in, and is signed out now. Their sales history stays.`,
+    { title: 'Deactivate?', okText: 'Deactivate', danger: true }))) return;
+  try {
+    await api(`/api/users/${id}/${on ? 'activate' : 'deactivate'}`, { method: 'PATCH' });
+    toast(on ? `${u.full_name} re-activated` : `${u.full_name} deactivated`); load();
+  } catch (e) { fail(e); }
+}
+
+init();
 </script>
 </body>
 </html>

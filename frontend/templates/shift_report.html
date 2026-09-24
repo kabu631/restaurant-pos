@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shift report #{{ s.id }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px; color: #000; background: #f0f0f0;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px;
+  }
+  .slip { background: #fff; width: 300px; padding: 12px; border: 1px solid #ccc; }
+  .center { text-align: center; }
+  .big { font-size: 18px; font-weight: bold; }
+  .divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .divider-solid { border-top: 2px solid #000; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
+  .row.b { font-weight: bold; }
+  .row.big { font-size: 15px; font-weight: bold; }
+  .small { font-size: 11px; }
+  .actions { display: flex; gap: 8px; }
+  .btn { padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
+         font-family: system-ui, sans-serif; background: #1d4ed8; color: #fff; }
+  @media print {
+    body { background: #fff; padding: 0; display: block; }
+    .slip { width: 100%; border: none; padding: 2px; }
+    .actions { display: none; }
+    @page { size: 80mm auto; margin: 3mm 2mm; }
+  }
+</style>
+</head>
+<body>
+<div class="slip">
+  <div class="center">
+    <div class="big">{{ restaurant.name }}</div>
+    <div>CASH DRAWER REPORT</div>
+    <div class="small">Shift #{{ s.id }}{% if s.status == 'open' %} · STILL OPEN{% endif %}</div>
+  </div>
+  <div class="divider-solid"></div>
+  <div class="row"><span>Opened</span><span>{{ opened_at }}</span></div>
+  <div class="row small"><span>by</span><span>{{ s.opened_by or '' }}</span></div>
+  {% if s.closed_at %}
+  <div class="row"><span>Closed</span><span>{{ closed_at }}</span></div>
+  <div class="row small"><span>by</span><span>{{ s.closed_by or '' }}</span></div>
+  {% endif %}
+  <div class="divider"></div>
+  <div class="row b"><span>SALES</span><span>{{ '%.2f'|format(s.total_sales) }}</span></div>
+  {% for m in s.by_method %}
+  <div class="row"><span>&nbsp; {{ m.label }}</span><span>{{ '%.2f'|format(m.amount) }}</span></div>
+  {% endfor %}
+  <div class="row"><span>Bills</span><span>{{ s.bills }}</span></div>
+  <div class="row"><span>Discounts given</span><span>{{ '%.2f'|format(s.discounts) }}</span></div>
+  {% if s.voided_bills %}<div class="row"><span>Voided bills</span><span>{{ s.voided_bills }}</span></div>{% endif %}
+  <div class="divider"></div>
+  <div class="row b"><span>CASH</span><span></span></div>
+  <div class="row"><span>Opening float</span><span>{{ '%.2f'|format(s.opening_float) }}</span></div>
+  <div class="row"><span>+ Cash sales</span><span>{{ '%.2f'|format(s.cash_sales) }}</span></div>
+  <div class="row"><span>+ Cash in</span><span>{{ '%.2f'|format(s.pay_in) }}</span></div>
+  <div class="row"><span>− Cash out</span><span>{{ '%.2f'|format(s.pay_out) }}</span></div>
+  <div class="row big"><span>Expected</span><span>{{ '%.2f'|format(s.expected_cash) }}</span></div>
+  {% if s.counted_cash is not none %}
+  <div class="row big"><span>Counted</span><span>{{ '%.2f'|format(s.counted_cash) }}</span></div>
+  <div class="row big"><span>{% if s.difference < 0 %}SHORT{% elif s.difference > 0 %}OVER{% else %}Difference{% endif %}</span>
+    <span>{{ '%.2f'|format(s.difference|abs) }}</span></div>
+  {% endif %}
+  {% if s.movements %}
+  <div class="divider"></div>
+  <div class="row b"><span>CASH IN / OUT</span><span></span></div>
+  {% for m in s.movements %}
+  <div class="row small"><span>{{ '+' if m.kind == 'in' else '−' }} {{ m.reason }} ({{ m.by or '' }})</span><span>{{ '%.2f'|format(m.amount) }}</span></div>
+  {% endfor %}
+  {% endif %}
+  {% if s.notes %}<div class="divider"></div><div class="small">Note: {{ s.notes }}</div>{% endif %}
+  <div class="divider-solid"></div>
+  <div class="center small">Printed {{ printed_at }}</div>
+  <br><br>
+  <div class="row small"><span>Cashier: ____________</span><span>Admin: ____________</span></div>
+</div>
+
+<div class="actions">
+  <button class="btn" onclick="window.print()">🖨 Print report</button>
+</div>
+<script>
+  if (new URLSearchParams(window.location.search).get('autoprint') === '1') {
+    window.onload = () => setTimeout(() => window.print(), 200);
+  }
+</script>
+</body>
+</html>

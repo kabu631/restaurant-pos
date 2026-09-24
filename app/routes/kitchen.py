@@ -9,6 +9,8 @@ from app.models.menu import Category, MenuItem
 from app.models.order import Order, OrderItem
 from app.models.table import RestaurantTable
 from app.models.user import User
+from app.services import audit
+from app.services.permissions import require_perm
 from app.routes.auth import get_current_user
 from app.services.order_ops import KITCHEN_STATUSES
 from app.utils import nepal
@@ -158,7 +160,7 @@ def ready_to_serve(db: Session = Depends(get_db),
 
 @router.patch("/items/{oi_id}/bump")
 def bump_item(oi_id: int, db: Session = Depends(get_db),
-              current_user: User = Depends(get_current_user)):
+              current_user: User = Depends(require_perm("kitchen.manage"))):
     """Advance item through sent → preparing → ready → served."""
     oi = _get_item(db, oi_id, current_user)
     next_status = BUMP_FLOW.get(oi.kot_status)
@@ -174,7 +176,7 @@ def bump_item(oi_id: int, db: Session = Depends(get_db),
 @router.patch("/tickets/{order_id}/{kot_number}/advance")
 def advance_ticket(order_id: int, kot_number: int, station: Optional[str] = None,
                    db: Session = Depends(get_db),
-                   current_user: User = Depends(get_current_user)):
+                   current_user: User = Depends(require_perm("kitchen.manage"))):
     """One tap for the whole ticket: Start (sent → preparing), Ready (→ ready), Done (→ served).
     With ?station= only that station's items on the ticket move."""
     oq = db.query(Order).filter(Order.id == order_id)
@@ -200,6 +202,8 @@ def advance_ticket(order_id: int, kot_number: int, station: Optional[str] = None
         if oi.kot_status in moving:
             changed.append({"id": oi.id, "previous": oi.kot_status})
             oi.kot_status = to
+    if to == "preparing":
+        audit.record(db, current_user, "ACCEPT_KOT", "orders", order_id, {"kot": kot_number})
     db.commit()
     return {"kot_status": to, "changed": changed}
 
@@ -207,7 +211,7 @@ def advance_ticket(order_id: int, kot_number: int, station: Optional[str] = None
 @router.patch("/tickets/{order_id}/{kot_number}/bump-all")
 def bump_all_ready(order_id: int, kot_number: int,
                    db: Session = Depends(get_db),
-                   current_user: User = Depends(get_current_user)):
+                   current_user: User = Depends(require_perm("kitchen.manage"))):
     """Mark all ready items on a ticket as served (ticket complete)."""
     oq = db.query(Order).filter(Order.id == order_id)
     if current_user.restaurant_id:
@@ -230,7 +234,7 @@ def bump_all_ready(order_id: int, kot_number: int,
 @router.patch("/items/{oi_id}/status")
 def set_item_status(oi_id: int, body: ItemStatusUpdate,
                     db: Session = Depends(get_db),
-                    current_user: User = Depends(get_current_user)):
+                    current_user: User = Depends(require_perm("kitchen.manage"))):
     """Set an item's KOT status directly (for corrections and undo)."""
     valid = {"sent", "preparing", "ready", "served"}
     if body.kot_status not in valid:

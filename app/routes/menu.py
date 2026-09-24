@@ -8,6 +8,8 @@ from app.models.menu import STATIONS, Category, MenuItem
 from app.models.inventory import Ingredient
 from app.models.recipe import RecipeIngredient
 from app.models.user import User
+from app.services import audit
+from app.services.permissions import require_perm
 from app.routes.auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/api/menu", tags=["menu"])
@@ -151,6 +153,9 @@ def update_item(item_id: int, body: MenuItemUpdate, db: Session = Depends(get_db
                                        Category.restaurant_id == item.restaurant_id)
         if not cq.first():
             raise HTTPException(status_code=404, detail="Category not found")
+    if body.price is not None and body.price != item.price:
+        audit.record(db, current_user, "PRICE_CHANGE", "menu_items", item.id,
+                     {"name": item.name, "price": body.price}, old={"price": item.price})
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(item, field, value)
     db.commit()
@@ -160,7 +165,7 @@ def update_item(item_id: int, body: MenuItemUpdate, db: Session = Depends(get_db
 
 @router.patch("/items/{item_id}/toggle")
 def toggle_availability(item_id: int, db: Session = Depends(get_db),
-                        current_user: User = Depends(require_admin)):
+                        current_user: User = Depends(require_perm("menu.availability"))):
     q = db.query(MenuItem).filter(MenuItem.id == item_id)
     if current_user.restaurant_id:
         q = q.filter(MenuItem.restaurant_id == current_user.restaurant_id)
@@ -168,6 +173,8 @@ def toggle_availability(item_id: int, db: Session = Depends(get_db),
     if not item:
         raise HTTPException(status_code=404, detail="Menu item not found")
     item.is_available = not item.is_available
+    audit.record(db, current_user, "BACK_ON_MENU" if item.is_available else "SOLD_OUT",
+                 "menu_items", item.id, {"name": item.name})
     db.commit()
     return {"id": item.id, "is_available": item.is_available}
 

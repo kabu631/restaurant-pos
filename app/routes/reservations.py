@@ -15,6 +15,7 @@ from app.models.order import Order
 from app.models.reservation import Reservation
 from app.models.table import RestaurantTable
 from app.models.user import User
+from app.services.permissions import require_perm
 from app.routes.auth import get_current_user
 from app.routes.tables import natural_key
 from app.services import order_ops as ops
@@ -207,7 +208,7 @@ def availability(date_str: str = Query(..., alias="date"), time: str = Query(...
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_reservation(body: ReservationIn, db: Session = Depends(get_db),
-                       current_user: User = Depends(get_current_user)):
+                       current_user: User = Depends(require_perm("bookings.manage"))):
     rid = ops.restaurant_id_of(current_user)
     _validate(body.party_size, body.duration_min, body.customer_name)
     when = _parse_when(body.date, body.time)
@@ -237,7 +238,7 @@ def create_reservation(body: ReservationIn, db: Session = Depends(get_db),
 @router.put("/{reservation_id}")
 def update_reservation(reservation_id: int, body: ReservationUpdate,
                        db: Session = Depends(get_db),
-                       current_user: User = Depends(get_current_user)):
+                       current_user: User = Depends(require_perm("bookings.manage"))):
     r = _get(db, reservation_id, current_user)
     if r.status != "booked":
         raise HTTPException(status_code=400, detail=f"This booking is already {r.status.replace('_', ' ')}")
@@ -269,7 +270,7 @@ def update_reservation(reservation_id: int, body: ReservationUpdate,
 
 @router.post("/{reservation_id}/seat")
 def seat_reservation(reservation_id: int, body: SeatBody, db: Session = Depends(get_db),
-                     current_user: User = Depends(get_current_user)):
+                     current_user: User = Depends(require_perm("bookings.manage"))):
     """Guests arrived: open an order on the booked (or chosen) table."""
     r = _get(db, reservation_id, current_user)
     if r.status != "booked":
@@ -321,19 +322,19 @@ def _set_status(db: Session, r: Reservation, new_status: str, allowed_from: tupl
 
 @router.post("/{reservation_id}/cancel")
 def cancel_reservation(reservation_id: int, db: Session = Depends(get_db),
-                       current_user: User = Depends(get_current_user)):
+                       current_user: User = Depends(require_perm("bookings.manage"))):
     return _set_status(db, _get(db, reservation_id, current_user), "cancelled", ("booked",))
 
 
 @router.post("/{reservation_id}/no-show")
 def no_show(reservation_id: int, db: Session = Depends(get_db),
-            current_user: User = Depends(get_current_user)):
+            current_user: User = Depends(require_perm("bookings.manage"))):
     return _set_status(db, _get(db, reservation_id, current_user), "no_show", ("booked",))
 
 
 @router.post("/{reservation_id}/reopen")
 def reopen_reservation(reservation_id: int, db: Session = Depends(get_db),
-                       current_user: User = Depends(get_current_user)):
+                       current_user: User = Depends(require_perm("bookings.manage"))):
     """Undo a cancel / no-show."""
     return _set_status(db, _get(db, reservation_id, current_user), "booked",
                        ("cancelled", "no_show"))

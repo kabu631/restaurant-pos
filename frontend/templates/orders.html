@@ -71,7 +71,7 @@ const S = {
   cart: [],             // new items not yet on the server
   busy: false,
 };
-const CAN_PAY = ['admin', 'cashier', 'superadmin'].includes(S.me.role);
+let CAN_PAY = POS.can('billing.pay');
 const STATUS = {
   pending:   ['Not sent', 'bg-gray-100 text-gray-600'],
   sent:      ['Waiting for kitchen', 'bg-yellow-100 text-yellow-800'],
@@ -101,7 +101,8 @@ function leave(url) { S.leaving = true; location.href = url; }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
-  if (!POS.guard(['admin', 'cashier', 'waiter', 'superadmin'])) return;
+  if (!POS.guardPerm('orders.take', 'billing.pay')) return;
+  document.addEventListener('pos:permissions', () => { CAN_PAY = POS.can('billing.pay'); renderAll(); });
   const params = new URLSearchParams(location.search);
   try {
     const [cfg, cats, items] = await Promise.all([
@@ -189,12 +190,13 @@ function renderBar() {
       <div class="relative">
         <button onclick="toggleOrderMenu(event)" class="w-10 h-10 rounded-lg hover:bg-gray-100 text-xl" aria-label="Order options">⋯</button>
         <div id="order-menu" class="hidden absolute right-0 mt-1 w-60 bg-white rounded-xl shadow-xl border py-1 z-40">
-          ${o.table_id ? '<button onclick="moveTable()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">🔀 Move to another table</button>' : ''}
+          ${o.table_id && POS.can('orders.transfer') ? '<button onclick="moveTable()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">🔀 Move to another table</button>' : ''}
           <button onclick="editDetails()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">✏️ Guest details & notes</button>
           <button onclick="printCheck()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">🧾 Print guest check</button>
           ${lastKot() ? `<button onclick="POS.printKot(${o.id}, ${lastKot()})" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">🖨 Reprint KOT #${lastKot()}</button>` : ''}
           <button onclick="submitItems(false)" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50">💾 Save without sending</button>
           ${sentToKitchen() ? `<p class="px-4 py-2.5 text-xs text-gray-400 border-t">🔒 Food has gone to the kitchen — this order can't be cancelled.</p>`
+            : !POS.can('orders.cancel') ? ''
             : `<button onclick="cancelOrder()" class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">✕ Cancel order</button>`}
         </div>
       </div>` : '';
@@ -410,7 +412,7 @@ function renderTicket() {
   }
 
   if (sent.length) {
-    html += sectionTitle('Sent to kitchen 🔒', ready ? `<button onclick="serveReady()" class="text-xs font-bold bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg">✓ Serve ${ready} ready</button>` : '');
+    html += sectionTitle('Sent to kitchen 🔒', ready && POS.can('orders.serve') ? `<button onclick="serveReady()" class="text-xs font-bold bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg">✓ Serve ${ready} ready</button>` : '');
     html += sent.map(sentRow).join('');
   }
   if (saved.length) {

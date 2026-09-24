@@ -16,14 +16,15 @@ from app.database import create_tables, SessionLocal, get_db
 import app.models  # noqa: F401 — registers all models with SQLAlchemy metadata
 from app.models.restaurant import Restaurant
 from app.models.user import User
+from app.models.audit import AuditTrail
 from app.models.bill import Bill
 from app.models.menu import Category, MenuItem
 from app.models.order import Order, OrderItem
 from app.models.table import RestaurantTable
 from app.utils import nepal
 from app.utils.security import decode_token, hash_password
-from app.routes import (auth, menu, tables, orders, kitchen, billing, inventory,
-                        restaurants, users, reports, reservations, customers)
+from app.routes import (access, auth, menu, tables, orders, kitchen, billing, inventory,
+                        restaurants, users, reports, reservations, customers, shifts)
 from app.routes import settings as settings_router
 from app.routes.auth import get_current_user, require_admin, token_from_request
 from app.services import backup as backup_svc
@@ -64,6 +65,8 @@ app.include_router(reports.router)
 app.include_router(settings_router.router)
 app.include_router(reservations.router)
 app.include_router(customers.router)
+app.include_router(shifts.router)
+app.include_router(access.router)
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────
@@ -168,6 +171,8 @@ def change_password(body: ChangePasswordBody,
     if len(body.new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     current_user.password_hash = hash_password(body.new_password)
+    db.add(AuditTrail(restaurant_id=current_user.restaurant_id, user_id=current_user.id,
+                      action="CHANGE_OWN_PASSWORD", table_name="users", record_id=current_user.id))
     db.commit()
     return {"ok": True}
 
@@ -210,6 +215,8 @@ for _path, _template in {
     "/users":        "users.html",
     "/reports":      "reports.html",
     "/settings":     "settings.html",
+    "/activity":     "activity.html",
+    "/account":      "account.html",
 }.items():
     app.add_api_route(_path, _page(_template), methods=["GET"], include_in_schema=False)
 
@@ -228,6 +235,8 @@ def _page_user(request: Request, token: Optional[str], db: Session) -> User:
     user = db.query(User).filter(User.id == int(payload.get("sub"))).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
+    if int(payload.get("sv", 0)) != (user.session_version or 0):
+        raise HTTPException(status_code=401, detail="You were signed out. Please log in again.")
     return user
 
 
@@ -327,4 +336,28 @@ def check_page(order_id: int, request: Request, token: Optional[str] = None,
         "lines": lines,
         "totals": totals,
         "printed_at": nepal.now().strftime("%Y-%m-%d %H:%M"),
+    })
+
+
+@app.get("/shift-report/{shift_id}", include_in_schema=False)
+def shift_report_page(shift_id: int, request: Request, token: Optional[str] = None,
+                      db: Session = Depends(get_db)):
+    """Cash drawer report (Z-report) for one shift."""
+    from app.models.cash_shift import CashShift
+    from app.routes.shifts import shift_summary
+    from app.services.permissions import denied, has_perm
+    user = _page_user(request, token, db)
+    if not has_perm(db, user, "cash.shift", "reports.view"):
+        raise denied(user, "cash.shift", "reports.view")
+    shift = db.query(CashShift).filter(CashShift.id == shift_id,
+                                       CashShift.restaurant_id == user.restaurant_id).first()
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    fmt = "%Y-%m-%d %H:%M"
+    return templates.TemplateResponse(request, "shift_report.html", {
+        "restaurant": _restaurant_info(db, shift.restaurant_id),
+        "s": shift_summary(db, shift),
+        "opened_at": shift.opened_at.strftime(fmt) if shift.opened_at else "",
+        "closed_at": shift.closed_at.strftime(fmt) if shift.closed_at else "",
+        "printed_at": nepal.now().strftime(fmt),
     })

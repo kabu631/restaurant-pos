@@ -15,8 +15,43 @@ Works without internet — all scripts and styles are served locally.
 | Waiter | **Floor** | Tap a table → tap dishes → *Send to kitchen*. The table shows **⏳ to accept** until the kitchen accepts, and a green **🔔 ready** badge when the food is done. |
 | Kitchen | **Kitchen display** | New tickets beep and flash. One big button per ticket: **✓ Accept order** → *All ready* → *Served*. Accepting sends the table's total to the cashier. Kitchen and Bar each see their own items. |
 | Cashier | **Billing** | Tables arrive in *Ready to bill* (with a beep) once the kitchen accepts. The customer pays last: **💳 Take payment** — cash (with change), card, FonePay, eSewa, Khalti, bank, or split — then **🖨 Print bill**. |
-| Anyone | **Bookings** | Name, phone, guests, time → the best-fitting free table is suggested. When guests arrive, *Seat* opens their order. |
-| Owner | **Dashboard, Reports, Settings** | Today's sales by payment method, VAT reports, staff, menu, tax and printer settings. |
+| Waiter / cashier | **Bookings** | Name, phone, guests, time → the best-fitting free table is suggested. When guests arrive, *Seat* opens their order. |
+| Admin (owner) | **Everything** | Dashboard, reports, staff, menu, tables, stock, settings — and approves bigger discounts and voids with their PIN. |
+
+## Roles & permissions
+
+Every restaurant has one boss — the **admin** — who can do everything. Everyone else gets a role,
+and each screen shows only what that person may do. The server enforces it too, so a hidden button
+can't be worked around.
+
+| Role | Can do (default) | Opens on |
+|------|------------------|----------|
+| **Admin** | Everything: staff, menu, tables, stock, reports, settings, approvals | Dashboard |
+| **Cashier** | Take payment & print bills, discounts up to the limit, cash drawer, sales reports, bookings, takeaway orders | Billing |
+| **Waiter** | Take orders & send to kitchen, serve food, move tables, cancel unsent orders, bookings | Floor |
+| **Kitchen** | Accept orders and mark them ready/served on the kitchen screen, mark dishes sold out | Kitchen display |
+
+- **Settings → Roles & permissions** — tick what each role may do (e.g. let waiters take payment in a
+  small café). Changes reach everyone within a couple of minutes without logging out.
+- **Admin approval** — a discount above the limit (10 % by default) or voiding a paid bill without
+  permission pops up *Admin approval* on the till; the admin types their PIN on that screen.
+  The approval is recorded with the admin's name.
+- **Staff** (admin) — add people, pick their role, set optional **login hours** (e.g. 09:00–17:00,
+  overnight shifts work too), reset passwords/PINs, **sign someone out on every device** at once
+  (lost phone), deactivate leavers. Shows who is **online now**. Changing someone's role, resetting
+  their password or deactivating them ends their current sessions.
+- **My account** (everyone, from the name menu) — see your permissions, change your own PIN and password.
+- **Activity** (admin) — a plain-language log of who did what and when: logins, orders, kitchen
+  accepts, payments, discounts and who approved them, voids, cash in/out, sold-out dishes, price
+  and settings changes. Filter by person, type, or only sensitive events.
+- **Reports → Staff performance** — orders, guests and sales per waiter; bills and cash collected per
+  cashier; tickets accepted by the kitchen; discounts, voids and cancels per person.
+
+### Cash drawer
+On **Billing**, the cashier opens the drawer with the float, records any **cash in / out** (vegetables,
+gas, bank deposit), and at the end taps **Close & count**. The app shows what should be in the drawer
+and whether the cash is **short or over**, and prints a shift report. Past shifts are under
+*Billing → Cash shifts*.
 
 The floor plan shows each table as a simple table-and-chairs icon: **green** when free, **red**
 with two guests seated when occupied, **amber** when booked ahead.
@@ -46,11 +81,15 @@ before billing.
   or **No ticket** (bottled drinks go straight to “served”).
 - Print from the ticket, or turn on *Settings → Kitchen & orders → Print every KOT automatically*
   (uses a thermal printer if configured, otherwise the browser print dialog).
+- **🚫 Sold out** on the kitchen screen: tick a dish when it runs out and waiters can't order it
+  until you untick it.
+- Waiters and cashiers can open the kitchen screen to see progress (view only) and mark ready food served.
 
 ### Payments
 - Upload your **FonePay / eSewa / Khalti / bank merchant QR** in *Settings → Payments*. When the
   cashier picks that method the QR is shown full-size for the guest; check your phone, tap Confirm.
-- Split a bill across several methods, apply a quick discount (5 / 10 / 15 % or any amount),
+- Split a bill across several methods, apply a quick discount (5 / 10 / 15 % or any amount — above
+  the cashier's limit the admin approves with their PIN),
   switch off service charge for one bill, and add a customer name + PAN for business bills.
 - Real FonePay merchant credentials in `.env` add a dynamic QR that confirms itself.
 

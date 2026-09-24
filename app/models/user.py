@@ -19,5 +19,11 @@ class User(Base):
     is_active     = Column(Boolean, default=True)
     pin           = Column(String, nullable=True)   # 4-digit quick login PIN
     last_login    = Column(DateTime, nullable=True)
+    last_seen_at  = Column(DateTime, nullable=True)  # last request — "online now" on the Staff page
+    # Bumped to end every open session at once (sign out everywhere, deactivation, password reset)
+    session_version = Column(Integer, default=0, nullable=False, server_default="0")
+    # Optional login hours in Nepal time, "HH:MM"; both empty = any time. Admins are never limited.
+    shift_start   = Column(String(5), nullable=True)
+    shift_end     = Column(String(5), nullable=True)
     created_at    = Column(DateTime, default=nepal.now, server_default=func.now())
     updated_at    = Column(DateTime, default=nepal.now, server_default=func.now(), onupdate=nepal.now)

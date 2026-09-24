@@ -11,6 +11,7 @@ from app.models.menu import MenuItem
 from app.models.order import Order, OrderItem
 from app.models.table import RestaurantTable
 from app.models.user import User
+from app.services.permissions import denied, has_perm, require_perm
 from app.routes.auth import get_current_user
 from app.services import audit
 from app.services import order_ops as ops
@@ -141,7 +142,7 @@ def list_orders(
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_order(body: OrderCreate, db: Session = Depends(get_db),
-                 current_user: User = Depends(get_current_user)):
+                 current_user: User = Depends(require_perm("orders.take"))):
     """Open an order — optionally with its first items and KOT in the same call."""
     rid = ops.restaurant_id_of(current_user)
     if body.order_type not in VALID_ORDER_TYPES:
@@ -183,6 +184,9 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db),
         kot = ops.send_kot(db, order) if body.send_kot else None
         if order.customer_phone:
             upsert_customer(db, rid, order.customer_name, order.customer_phone)
+        audit.record(db, current_user, "OPEN_ORDER", "orders", order.id,
+                     {"type": order.order_type, "table": tbl.table_number if tbl else None,
+                      **({"kot": kot} if kot else {})})
         db.commit()
         db.refresh(order)
 
@@ -200,7 +204,7 @@ def get_order(order_id: int, db: Session = Depends(get_db),
 
 @router.patch("/{order_id}")
 def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db),
-                 current_user: User = Depends(get_current_user)):
+                 current_user: User = Depends(require_perm("orders.take"))):
     """Edit guests, customer details, delivery address or order notes."""
     order = ops.get_order(db, order_id, current_user)
     ops.require_active(order)
@@ -221,6 +225,10 @@ def update_order_status(order_id: int, body: OrderStatusUpdate,
                         current_user: User = Depends(get_current_user)):
     if body.status not in VALID_STATUSES:
         raise HTTPException(status_code=400, detail=f"status must be one of {VALID_STATUSES}")
+    # Cancelling needs orders.cancel; closing a (paid) order is the cashier's job
+    need = {"cancelled": ("orders.cancel",), "completed": ("billing.pay",)}.get(body.status, ("orders.take",))
+    if not has_perm(db, current_user, *need):
+        raise denied(current_user, *need)
     order = ops.get_order(db, order_id, current_user)
     if body.status == "cancelled":
         return cancel_order(order_id, ReasonBody(), db, current_user)
@@ -241,7 +249,7 @@ def update_order_status(order_id: int, body: OrderStatusUpdate,
 
 @router.post("/{order_id}/cancel")
 def cancel_order(order_id: int, body: ReasonBody, db: Session = Depends(get_db),
-                 current_user: User = Depends(get_current_user)):
+                 current_user: User = Depends(require_perm("orders.cancel"))):
     """Cancel an order that the kitchen hasn't received anything for (entered by mistake,
     guests left before ordering).  Once food has gone to the kitchen it must be billed."""
     order = ops.get_order(db, order_id, current_user)
@@ -265,7 +273,7 @@ def cancel_order(order_id: int, body: ReasonBody, db: Session = Depends(get_db),
 
 @router.post("/{order_id}/items", status_code=status.HTTP_201_CREATED)
 def add_item(order_id: int, body: OrderItemAdd, db: Session = Depends(get_db),
-             current_user: User = Depends(get_current_user)):
+             current_user: User = Depends(require_perm("orders.take"))):
     order = ops.get_order(db, order_id, current_user)
     with db_transaction(db):
         (oi,) = ops.add_items(db, order, [body])
@@ -277,7 +285,7 @@ def add_item(order_id: int, body: OrderItemAdd, db: Session = Depends(get_db),
 
 @router.post("/{order_id}/items/bulk")
 def add_items_bulk(order_id: int, body: OrderItemsBulk, db: Session = Depends(get_db),
-                   current_user: User = Depends(get_current_user)):
+                   current_user: User = Depends(require_perm("orders.take"))):
     """Add several items at once and optionally fire them to the kitchen — one atomic call."""
     order = ops.get_order(db, order_id, current_user)
     ops.require_active(order)
@@ -299,7 +307,7 @@ def add_items_bulk(order_id: int, body: OrderItemsBulk, db: Session = Depends(ge
 @router.put("/{order_id}/items/{oi_id}")
 def update_item(order_id: int, oi_id: int, body: OrderItemUpdate,
                 db: Session = Depends(get_db),
-                current_user: User = Depends(get_current_user)):
+                current_user: User = Depends(require_perm("orders.take"))):
     order = ops.get_order(db, order_id, current_user)
     oi = _get_item(db, order, oi_id)
     if oi.kot_status != "pending":
@@ -319,7 +327,7 @@ def update_item(order_id: int, oi_id: int, body: OrderItemUpdate,
 
 @router.delete("/{order_id}/items/{oi_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_item(order_id: int, oi_id: int, db: Session = Depends(get_db),
-                current_user: User = Depends(get_current_user)):
+                current_user: User = Depends(require_perm("orders.take"))):
     order = ops.get_order(db, order_id, current_user)
     oi = _get_item(db, order, oi_id)
     if oi.kot_status != "pending":
@@ -332,20 +340,21 @@ def remove_item(order_id: int, oi_id: int, db: Session = Depends(get_db),
 
 @router.post("/{order_id}/kot")
 def send_kot(order_id: int, db: Session = Depends(get_db),
-             current_user: User = Depends(get_current_user)):
+             current_user: User = Depends(require_perm("orders.take"))):
     order = ops.get_order(db, order_id, current_user)
     with db_transaction(db):
         ops.lock_restaurant(db, order.restaurant_id)
         kot = ops.send_kot(db, order)
         if not kot:
             raise HTTPException(status_code=400, detail="No pending items to send to kitchen")
+        audit.record(db, current_user, "SEND_KOT", "orders", order.id, {"kot": kot})
         db.commit()
     return ops.dispatch_kot_print(db, order, kot)
 
 
 @router.post("/{order_id}/serve-ready")
 def serve_ready(order_id: int, db: Session = Depends(get_db),
-                current_user: User = Depends(get_current_user)):
+                current_user: User = Depends(require_perm("orders.serve", "kitchen.manage"))):
     """Waiter picked up everything the kitchen marked ready."""
     order = ops.get_order(db, order_id, current_user)
     items = db.query(OrderItem).filter(OrderItem.order_id == order.id,
@@ -358,7 +367,7 @@ def serve_ready(order_id: int, db: Session = Depends(get_db),
 
 @router.post("/{order_id}/transfer")
 def transfer_order(order_id: int, body: TransferBody, db: Session = Depends(get_db),
-                   current_user: User = Depends(get_current_user)):
+                   current_user: User = Depends(require_perm("orders.transfer"))):
     """Move an open order to another free table."""
     order = ops.get_order(db, order_id, current_user)
     ops.require_active(order)
@@ -390,7 +399,7 @@ def transfer_order(order_id: int, body: TransferBody, db: Session = Depends(get_
 @router.patch("/{order_id}/items/{oi_id}/kot-status")
 def update_kot_status(order_id: int, oi_id: int, body: KOTStatusUpdate,
                       db: Session = Depends(get_db),
-                      current_user: User = Depends(get_current_user)):
+                      current_user: User = Depends(require_perm("kitchen.manage"))):
     if body.kot_status not in VALID_KOT_STATUSES:
         raise HTTPException(status_code=400, detail=f"kot_status must be one of {VALID_KOT_STATUSES}")
     order = ops.get_order(db, order_id, current_user)

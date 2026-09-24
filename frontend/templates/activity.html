@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activity — Restaurant POS</title>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<div id="pos-nav"></div>
+
+<main class="p-3 sm:p-5 max-w-4xl mx-auto space-y-4">
+  <div>
+    <h1 class="text-xl font-extrabold text-gray-900">🕘 Activity</h1>
+    <p class="text-sm text-gray-500">Everything your staff did — logins, orders, kitchen, payments, discounts, voids, cash and changes.</p>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm p-3 flex flex-wrap items-center gap-2">
+    <button onclick="shiftDay(-1)" class="w-9 h-9 rounded-lg border hover:bg-gray-50" aria-label="Previous day">‹</button>
+    <input id="f-day" type="date" class="border rounded-lg px-3 py-2 text-sm">
+    <button onclick="shiftDay(1)" class="w-9 h-9 rounded-lg border hover:bg-gray-50" aria-label="Next day">›</button>
+    <select id="f-user" class="border rounded-lg px-3 py-2 text-sm"><option value="">Everyone</option></select>
+    <select id="f-cat" class="border rounded-lg px-3 py-2 text-sm"><option value="">Everything</option></select>
+    <label class="flex items-center gap-2 text-sm font-medium text-gray-700 px-2">
+      <input id="f-important" type="checkbox" class="w-4 h-4 accent-red-600"> ⚠ Only sensitive</label>
+    <span id="count" class="text-sm text-gray-500 ml-auto"></span>
+  </div>
+
+  <section id="list" class="bg-white rounded-2xl shadow-sm divide-y"></section>
+</main>
+
+<script>
+const { api, esc, fail } = POS;
+const CAT_LABELS = { billing: '💳 Billing', cash: '💵 Cash drawer', kitchen: '🔥 Kitchen', menu: '📖 Menu',
+                     orders: '🧾 Orders', settings: '⚙️ Settings', staff: '👥 Staff & logins' };
+let loadedFilters = false;
+
+async function init() {
+  if (!POS.requireLogin() || !POS.isAdmin()) { location.href = POS.user().home || '/login'; return; }
+  POS.nav('/activity');
+  document.getElementById('f-day').value = POS.todayISO();
+  ['f-day', 'f-user', 'f-cat', 'f-important'].forEach(id => document.getElementById(id).onchange = load);
+  await load();
+  setInterval(() => { if (!document.hidden && document.getElementById('f-day').value === POS.todayISO()) load(); }, 20000);
+}
+
+function shiftDay(n) {
+  const el = document.getElementById('f-day');
+  const d = new Date(el.value + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  el.value = d.toISOString().slice(0, 10);
+  load();
+}
+
+async function load() {
+  const q = new URLSearchParams({ day: document.getElementById('f-day').value, limit: '500' });
+  const user = document.getElementById('f-user').value;
+  const cat = document.getElementById('f-cat').value;
+  if (user) q.set('user_id', user);
+  if (cat) q.set('category', cat);
+  if (document.getElementById('f-important').checked) q.set('important', 'true');
+  let d;
+  try { d = await api(`/api/activity?${q}`); } catch (e) { fail(e); return; }
+  if (!loadedFilters) {
+    loadedFilters = true;
+    document.getElementById('f-user').innerHTML += d.staff.map(s => `<option value="${s.id}">${esc(s.name)} (${esc(s.role)})</option>`).join('');
+    document.getElementById('f-cat').innerHTML += d.categories.map(c => `<option value="${c}">${CAT_LABELS[c] || c}</option>`).join('');
+  }
+  document.getElementById('count').textContent = `${d.entries.length} event(s)`;
+  document.getElementById('list').innerHTML = d.entries.length ? d.entries.map(e => `
+    <div class="px-4 py-3 flex gap-3 ${e.important ? 'bg-red-50/60' : ''}">
+      <span class="text-xl w-7 text-center shrink-0">${esc(e.icon)}</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm text-gray-900"><span class="font-semibold">${esc(e.user)}</span>
+          ${e.role ? `<span class="text-xs text-gray-400">${esc(e.role)}</span>` : ''} ${esc(e.text)}</p>
+        ${e.reason ? `<p class="text-xs text-gray-600 mt-0.5">Reason: “${esc(e.reason)}”</p>` : ''}
+      </div>
+      <span class="text-xs text-gray-500 whitespace-nowrap tabular-nums">${POS.time(e.at)}</span>
+    </div>`).join('')
+    : '<p class="p-10 text-center text-gray-400">Nothing recorded for this day.</p>';
+}
+
+init();
+</script>
+</body>
+</html>

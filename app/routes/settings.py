@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.routes.auth import get_current_user, require_admin
+from app.services import audit
 from app.services.restaurant_settings import (
     DEFAULT_PAYMENT_METHODS, DEFAULT_QUICK_NOTES, DEFAULT_RESERVATION_HOLD_MIN,
     PAYMENT_METHODS, QR_METHODS, as_bool, enabled_payment_methods, get_setting,
@@ -183,6 +184,7 @@ def upsert_setting(body: SettingUpsert,
                             detail=f"Unknown setting key. Allowed: {sorted(ALLOWED_KEYS)}")
     value = _clean_value(body.key, body.value)
     set_setting(db, current_user.restaurant_id, body.key, value)
+    audit.record(db, current_user, "SETTINGS", "app_settings", None, {"changed": [body.key]})
     db.commit()
     return {"key": body.key, "value": value}
 
@@ -209,8 +211,13 @@ def bulk_update(body: dict,
         raise HTTPException(status_code=400,
                             detail=f"Unknown setting keys: {unknown}")
     cleaned = {key: _clean_value(key, value) for key, value in settings.items()}
+    before = get_settings(db, current_user.restaurant_id, cleaned)
     for key, value in cleaned.items():
         set_setting(db, current_user.restaurant_id, key, value)
+    changed = [k for k, v in cleaned.items() if before.get(k, ALLOWED_KEYS[k]) != v]
+    if changed or profile:
+        audit.record(db, current_user, "SETTINGS", "app_settings", None,
+                     {"changed": changed + (["profile"] if profile else [])})
 
     db.commit()
     db.refresh(r)

@@ -14,6 +14,7 @@ from app.models.order import Order, OrderItem
 from app.models.reservation import Reservation
 from app.models.table import RestaurantTable
 from app.models.user import User
+from app.services.permissions import require_perm
 from app.routes.auth import get_current_user, require_admin
 from app.services import order_ops as ops
 from app.services.billing_calc import compute_totals
@@ -278,7 +279,7 @@ def update_table(table_id: int, body: TableUpdate, db: Session = Depends(get_db)
 @router.patch("/{table_id}/status")
 def update_table_status(table_id: int, body: TableStatusUpdate,
                         db: Session = Depends(get_db),
-                        current_user: User = Depends(get_current_user)):
+                        current_user: User = Depends(require_perm("bookings.manage", "orders.take"))):
     if body.status not in ("free", "occupied", "reserved"):
         raise HTTPException(status_code=400, detail="Status must be free, occupied, or reserved")
     q = db.query(RestaurantTable).filter(RestaurantTable.id == table_id)

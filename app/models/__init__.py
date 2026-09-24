@@ -10,6 +10,7 @@ from app.models.customer import Customer
 from app.models.audit import AuditTrail
 from app.models.sync_log import SyncLog
 from app.models.reservation import Reservation
+from app.models.cash_shift import CashShift, CashMovement
 
 __all__ = [
     "Restaurant",
@@ -29,4 +30,6 @@ __all__ = [
     "AuditTrail",
     "SyncLog",
     "Reservation",
+    "CashShift",
+    "CashMovement",
 ]

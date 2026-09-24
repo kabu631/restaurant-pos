@@ -206,11 +206,41 @@
     </div>
   </div>
 
+  <!-- Staff performance -->
+  <div class="card p-5 fade-in mb-5">
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider flex-1">👥 Staff performance</h2>
+      <input id="staff-from" type="date" class="border rounded px-2 py-1.5 text-sm">
+      <span class="text-gray-400 text-sm">to</span>
+      <input id="staff-to" type="date" class="border rounded px-2 py-1.5 text-sm">
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-gray-500 text-left border-b">
+          <tr>
+            <th class="py-2 pr-3 font-medium">Staff</th>
+            <th class="py-2 px-3 font-medium text-right" title="Paid orders they took">Orders</th>
+            <th class="py-2 px-3 font-medium text-right">Guests</th>
+            <th class="py-2 px-3 font-medium text-right" title="Sales from orders they took">Sales</th>
+            <th class="py-2 px-3 font-medium text-right">Avg order</th>
+            <th class="py-2 px-3 font-medium text-right" title="Bills they took payment for">Bills settled</th>
+            <th class="py-2 px-3 font-medium text-right">Collected</th>
+            <th class="py-2 px-3 font-medium text-right">Discounts</th>
+            <th class="py-2 px-3 font-medium text-right" title="Kitchen tickets accepted">Tickets</th>
+            <th class="py-2 pl-3 font-medium text-right">Voids / cancels</th>
+          </tr>
+        </thead>
+        <tbody id="staff-body"></tbody>
+      </table>
+    </div>
+  </div>
+
 </main>
 
 <script>
   // ── Auth guard ──────────────────────────────────────────────────────────────
   const token = localStorage.getItem('token');
+  if (!POS.guardPerm('reports.view')) throw new Error('redirecting');
   POS.nav('/reports');
   const me    = JSON.parse(localStorage.getItem('user') || '{}');
   if (!token) window.location.href = '/login';
@@ -597,6 +627,38 @@
     localStorage.clear();
     window.location.href = '/login';
   }
+
+  // ── Staff performance ─────────────────────────────────────────────────────────
+  async function loadStaff() {
+    const q = new URLSearchParams({ from: document.getElementById('staff-from').value,
+                                    to: document.getElementById('staff-to').value });
+    let d;
+    try { d = await POS.api(`/api/reports/staff?${q}`); } catch (e) { POS.fail(e); return; }
+    const n = v => v ? Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '<span class="text-gray-300">—</span>';
+    const c = v => v ? v : '<span class="text-gray-300">—</span>';
+    const top = Math.max(...d.staff.map(s => s.sales), 0);
+    document.getElementById('staff-body').innerHTML = d.staff.length ? d.staff.map(s => `
+      <tr class="border-b last:border-0 hover:bg-gray-50">
+        <td class="py-2 pr-3">
+          <span class="font-semibold text-gray-800">${POS.esc(s.name)}</span>${s.sales && s.sales === top ? ' 🏆' : ''}
+          <span class="block text-xs text-gray-500 capitalize">${POS.esc(s.role)}${s.is_active ? '' : ' · inactive'}</span>
+        </td>
+        <td class="py-2 px-3 text-right tabular-nums">${c(s.orders)}</td>
+        <td class="py-2 px-3 text-right tabular-nums">${c(s.guests)}</td>
+        <td class="py-2 px-3 text-right tabular-nums font-semibold">${n(s.sales)}</td>
+        <td class="py-2 px-3 text-right tabular-nums">${n(s.avg_order)}</td>
+        <td class="py-2 px-3 text-right tabular-nums">${c(s.bills_settled)}</td>
+        <td class="py-2 px-3 text-right tabular-nums">${n(s.collected)}</td>
+        <td class="py-2 px-3 text-right tabular-nums ${s.discounts ? 'text-amber-700' : ''}">${n(s.discounts)}</td>
+        <td class="py-2 px-3 text-right tabular-nums">${c(s.tickets_accepted)}</td>
+        <td class="py-2 pl-3 text-right tabular-nums ${s.voids + s.cancels ? 'text-red-600 font-semibold' : ''}">${s.voids + s.cancels ? `${s.voids} / ${s.cancels}` : '<span class="text-gray-300">—</span>'}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="10" class="py-8 text-center text-gray-400">No staff activity in this period</td></tr>';
+  }
+  document.getElementById('staff-from').value = POS.todayISO(-new Date().getDate() + 1);
+  document.getElementById('staff-to').value = POS.todayISO();
+  ['staff-from', 'staff-to'].forEach(id => document.getElementById(id).onchange = loadStaff);
+  loadStaff();
 
   // ── Init ────────────────────────────────────────────────────────────────────
   setPeriod('monthly');

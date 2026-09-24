@@ -21,14 +21,15 @@ from app.models.table import RestaurantTable
 from app.models.inventory import Ingredient
 from app.models.user import User
 from app.models.audit import AuditTrail
-from app.routes.auth import require_admin, require_roles
+from app.routes.auth import require_admin
+from app.services.permissions import require_perm
 from app.routes.billing import payment_breakdown
 from app.utils import nepal
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 # Sales figures: managers and cashiers; the audit trail: admins only
-_report_user = require_roles("admin", "cashier", "superadmin")
+_report_user = require_perm("reports.view")
 
 
 # ── Time helpers ──────────────────────────────────────────────────────────────
@@ -633,3 +634,64 @@ def export_audit(
         "Timestamp (NPT)", "User", "Action", "Table", "Record ID",
         "Old Value", "New Value", "Reason", "IP Address",
     ], f"audit_trail_{d_from}_{d_to}.csv")
+
+
+# ── Staff performance ─────────────────────────────────────────────────────────
+
+@router.get("/staff")
+def staff_performance(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date:   Optional[str] = Query(None, alias="to"),
+    db:        Session       = Depends(get_db),
+    current_user: User       = Depends(_report_user),
+):
+    """Who sold what: orders and sales by the waiter who took them, payments by the
+    cashier who took them, tickets accepted by the kitchen, voids and discounts."""
+    start, end, d_from, d_to = _parse_date_range(from_date, to_date)
+    rid = current_user.restaurant_id
+    staff = {u.id: u for u in db.query(User).filter(User.restaurant_id == rid).all()}
+    rows: dict = {}
+
+    def row(uid):
+        u = staff.get(uid)
+        if uid not in rows:
+            rows[uid] = {"user_id": uid, "name": u.full_name if u else "Unknown",
+                         "role": u.role if u else "", "is_active": bool(u and u.is_active),
+                         "orders": 0, "guests": 0, "sales": 0.0, "avg_order": 0.0,
+                         "bills_settled": 0, "collected": 0.0, "discounts": 0.0,
+                         "tickets_accepted": 0, "voids": 0, "cancels": 0}
+        return rows[uid]
+
+    paid = (db.query(Bill, Order).join(Order, Order.id == Bill.order_id)
+              .filter(Bill.restaurant_id == rid, Bill.payment_status == "paid",
+                      Bill.created_at >= start, Bill.created_at < end).all())
+    for bill, order in paid:
+        if order.waiter_id:
+            r = row(order.waiter_id)
+            r["orders"] += 1
+            r["guests"] += order.guests or 0
+            r["sales"] += bill.grand_total or 0
+        if bill.cashier_id:
+            r = row(bill.cashier_id)
+            r["bills_settled"] += 1
+            r["collected"] += bill.grand_total or 0
+            r["discounts"] += bill.discount_amount or 0
+
+    events = (db.query(AuditTrail.user_id, AuditTrail.action)
+                .filter(AuditTrail.restaurant_id == rid,
+                        AuditTrail.action.in_(("ACCEPT_KOT", "VOID_BILL", "CANCEL_ORDER")),
+                        AuditTrail.created_at >= start, AuditTrail.created_at < end).all())
+    key = {"ACCEPT_KOT": "tickets_accepted", "VOID_BILL": "voids", "CANCEL_ORDER": "cancels"}
+    for uid, action in events:
+        if uid:
+            row(uid)[key[action]] += 1
+
+    out = []
+    for r in rows.values():
+        r["sales"] = round(r["sales"], 2)
+        r["collected"] = round(r["collected"], 2)
+        r["discounts"] = round(r["discounts"], 2)
+        r["avg_order"] = round(r["sales"] / r["orders"], 2) if r["orders"] else 0.0
+        out.append(r)
+    out.sort(key=lambda r: (-r["sales"], -r["collected"], -r["tickets_accepted"], r["name"]))
+    return {"from": d_from.isoformat(), "to": d_to.isoformat(), "staff": out}

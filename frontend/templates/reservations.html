@@ -40,7 +40,7 @@ let day = POS.todayISO();
 let list = [];
 
 async function init() {
-  if (!POS.guard(['admin', 'cashier', 'waiter', 'superadmin'])) return;
+  if (!POS.guardPerm('bookings.manage')) return;
   POS.nav('/reservations');
   const dayInput = document.getElementById('day');
   dayInput.onchange = () => { if (dayInput.value) { day = dayInput.value; load(); } };

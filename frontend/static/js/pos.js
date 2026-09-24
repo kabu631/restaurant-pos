@@ -7,7 +7,11 @@
  *   POS.time(iso) / POS.dateTime()  shown in Nepal time whatever the device clock
  *   POS.toast / POS.confirm / POS.prompt   touch-friendly feedback and dialogs
  *   POS.print(url) / POS.printReceipt(billId)   print through a hidden frame
- *   POS.nav(active)                 top navigation, filtered by role
+ *   POS.nav(active)                 top navigation, filtered by permission
+ *   POS.can('billing.pay', ...)     does the signed-in user have any of these permissions?
+ *   POS.guardPerm(...keys)          leave the page unless the user has one of them
+ *   POS.withApproval(fn)            run fn(pin); if the server needs the admin's approval,
+ *                                   ask for the admin PIN and try again
  */
 (function () {
   'use strict';
@@ -50,6 +54,86 @@
       return false;
     }
     return true;
+  }
+
+  // ── Permissions (the server enforces them; the screens just hide what you can't do)
+  function isAdmin(u = user()) { return u.role === 'admin' || u.role === 'superadmin'; }
+  function can(...keys) {
+    const u = user();
+    if (isAdmin(u)) return true;
+    const perms = u.permissions || [];
+    return keys.some(k => perms.includes(k));
+  }
+  /** Redirect to the user's home screen unless they have one of these permissions. */
+  function guardPerm(...keys) {
+    if (!requireLogin()) return false;
+    if (!can(...keys)) {
+      const home = user().home;
+      location.href = home && home !== location.pathname ? home : '/account';
+      return false;
+    }
+    return true;
+  }
+  /** Re-read my permissions — an admin may have changed them since I logged in. */
+  async function refreshMe() {
+    let me;
+    try { me = await api('/api/auth/me', { noRedirect: true }); } catch (e) {
+      if (e.status === 401) {
+        toast(e.message, { type: 'warn' });
+        setTimeout(() => { clearSession(); goLogin(); }, 1500);
+      }
+      return null;
+    }
+    const before = JSON.stringify([user().permissions, user().discount_limit, user().role]);
+    localStorage.setItem('user', JSON.stringify({ ...user(), ...me }));
+    if (before !== JSON.stringify([me.permissions, me.discount_limit, me.role])) {
+      document.dispatchEvent(new CustomEvent('pos:permissions', { detail: me }));
+    }
+    return me;
+  }
+
+  /** Ask for the admin's PIN on this device (manager approval). Resolves to the PIN or null. */
+  function askApproval(reason) {
+    return modal(`
+      <form>
+        <div class="text-center">
+          <div class="text-4xl mb-2">🛡️</div>
+          <h2 class="text-lg font-bold text-gray-900">Admin approval</h2>
+          <p class="text-sm text-gray-600 mt-1 mb-4">${esc(reason || 'This needs the admin’s approval.')}<br>Ask the admin to enter their PIN.</p>
+        </div>
+        <input name="pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"
+          class="w-full text-center tracking-[0.6em] text-2xl font-mono border rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••" />
+        <div class="flex gap-2 mt-4">
+          <button type="button" data-x="no" class="flex-1 py-3 rounded-xl border text-gray-700 font-medium hover:bg-gray-50">Cancel</button>
+          <button type="submit" class="flex-1 py-3 rounded-xl text-white font-semibold bg-blue-600 hover:bg-blue-700">Approve</button>
+        </div>
+      </form>`, {
+      onMount: (w, close) => {
+        const input = w.querySelector('input');
+        w.querySelector('[data-x=no]').onclick = () => close(null);
+        input.oninput = () => {
+          input.value = input.value.replace(/\D/g, '');
+          if (input.value.length === 4) close(input.value);
+        };
+        w.querySelector('form').onsubmit = e => { e.preventDefault(); if (input.value.length === 4) close(input.value); };
+        setTimeout(() => input.focus(), 30);
+      },
+    });
+  }
+  /** Run fn(overridePin) — first without a PIN; when the server answers that the admin must
+   *  approve, ask for the admin PIN and retry.  Resolves to fn's result, or null if cancelled. */
+  async function withApproval(fn) {
+    let pin = null;
+    for (;;) {
+      try {
+        return await fn(pin);
+      } catch (e) {
+        const needs = e instanceof ApiError && e.status === 403 && e.headers && e.headers.get('X-Needs-Override');
+        if (!needs) throw e;
+        pin = await askApproval(pin ? 'That isn’t an admin PIN — try again.' : e.message);
+        if (!pin) return null;
+      }
+    }
   }
 
   // ── API ────────────────────────────────────────────────────────────────────
@@ -274,28 +358,44 @@
   document.addEventListener('pointerdown', unlockAudio, { once: true });
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  const STAFF = ['admin', 'cashier', 'waiter', 'superadmin'];
+  // Each link shows when the user has any of its permissions ('admin' = admins only)
   const LINKS = [
-    { href: '/dashboard',    label: 'Dashboard', icon: '📊', roles: ['admin', 'superadmin'] },
-    { href: '/tables',       label: 'Floor',     icon: '🪑', roles: STAFF },
-    { href: '/orders',       label: 'Quick Order', icon: '➕', roles: STAFF },
-    { href: '/kitchen',      label: 'Kitchen',   icon: '👨‍🍳', roles: [...STAFF, 'kitchen'] },
-    { href: '/reservations', label: 'Bookings',  icon: '📅', roles: STAFF },
-    { href: '/billing',      label: 'Billing',   icon: '🧾', roles: ['admin', 'cashier', 'superadmin'] },
-    { href: '/menu',         label: 'Menu',      icon: '📖', roles: ['admin', 'superadmin'], more: true },
-    { href: '/inventory',    label: 'Inventory', icon: '📦', roles: ['admin', 'superadmin'], more: true },
-    { href: '/reports',      label: 'Reports',   icon: '📈', roles: ['admin', 'cashier', 'superadmin'], more: true },
-    { href: '/users',        label: 'Staff',     icon: '👥', roles: ['admin', 'superadmin'], more: true },
-    { href: '/settings',     label: 'Settings',  icon: '⚙️', roles: ['admin', 'superadmin'], more: true },
+    { href: '/dashboard',    label: 'Dashboard', icon: '📊', perms: ['admin'] },
+    { href: '/tables',       label: 'Floor',     icon: '🪑', perms: ['orders.take', 'bookings.manage', 'billing.pay'] },
+    { href: '/orders',       label: 'Quick Order', icon: '➕', perms: ['orders.take'] },
+    { href: '/kitchen',      label: 'Kitchen',   icon: '👨‍🍳', perms: ['kitchen.manage', 'orders.take', 'orders.serve'] },
+    { href: '/reservations', label: 'Bookings',  icon: '📅', perms: ['bookings.manage'] },
+    { href: '/billing',      label: 'Billing',   icon: '🧾', perms: ['billing.pay'] },
+    { href: '/menu',         label: 'Menu',      icon: '📖', perms: ['admin'], more: true },
+    { href: '/inventory',    label: 'Inventory', icon: '📦', perms: ['admin'], more: true },
+    { href: '/reports',      label: 'Reports',   icon: '📈', perms: ['reports.view'], more: true },
+    { href: '/users',        label: 'Staff',     icon: '👥', perms: ['admin'], more: true },
+    { href: '/activity',     label: 'Activity',  icon: '🕘', perms: ['admin'], more: true },
+    { href: '/settings',     label: 'Settings',  icon: '⚙️', perms: ['admin'], more: true },
   ];
+  function allowed(link) {
+    return link.perms.includes('admin') ? isAdmin() : can(...link.perms);
+  }
+  let refreshed = false;
 
   let readyCount = null;
+  let readyTimer = null;
 
   function nav(active, opts = {}) {
     const host = document.getElementById('pos-nav');
     if (!host) return;
     const u = user();
-    const links = LINKS.filter(l => l.roles.includes(u.role));
+    const links = LINKS.filter(allowed);
+    if (!refreshed && u.role && u.role !== 'superadmin') {
+      // Pick up permission changes the admin made since this person logged in
+      refreshed = true;
+      refreshMe();
+      document.addEventListener('pos:permissions', () => {
+        nav(active, opts);
+        toast('Your permissions were updated by the admin', { type: 'info' });
+      });
+      setInterval(refreshMe, 120000);
+    }
     const cls = l => l.href === active
       ? 'bg-gray-700 text-white'
       : 'text-gray-300 hover:bg-gray-800 hover:text-white';
@@ -336,10 +436,15 @@
               <span class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold">${esc(initials)}</span>
               <span class="hidden md:block text-left leading-tight">
                 <span class="block text-sm">${esc(u.full_name || u.username || '')}</span>
-                <span class="block text-xs text-gray-400 capitalize">${esc(u.role || '')}</span>
+                <span class="block text-xs text-gray-400">${esc(u.role_label || u.role || '')}</span>
               </span>
             </button>
-            <div data-menu="user" class="hidden absolute right-0 mt-2 w-52 bg-white text-gray-800 rounded-xl shadow-xl py-1 z-50">
+            <div data-menu="user" class="hidden absolute right-0 mt-2 w-56 bg-white text-gray-800 rounded-xl shadow-xl py-1 z-50">
+              <div class="px-4 py-2 border-b md:hidden">
+                <p class="text-sm font-semibold">${esc(u.full_name || u.username || '')}</p>
+                <p class="text-xs text-gray-500">${esc(u.role_label || u.role || '')}</p>
+              </div>
+              ${u.role !== 'superadmin' ? '<a href="/account" class="block px-4 py-2.5 text-sm hover:bg-gray-100">👤 My account</a>' : ''}
               <button data-act="switch" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100">🔢 Switch user (PIN)</button>
               <button data-act="logout" class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">⎋ Log out</button>
             </div>
@@ -372,9 +477,11 @@
     tick();
     setInterval(tick, 15000);
 
-    if (u.role && u.role !== 'kitchen' && u.role !== 'superadmin' && opts.readyAlerts !== false) {
+    if (u.role !== 'superadmin' && can('orders.serve') && opts.readyAlerts !== false && !readyTimer) {
       pollReady();
-      setInterval(pollReady, 15000);
+      readyTimer = setInterval(pollReady, 15000);
+    } else if (readyTimer) {
+      pollReady();
     }
   }
 
@@ -421,6 +528,7 @@
 
   window.POS = {
     token, user, setSession, clearSession, requireLogin, guard, goLogin, logout,
+    can, isAdmin, guardPerm, refreshMe, withApproval, askApproval,
     api, ApiError, esc, num, money, time, date, dateTime, todayISO, duration, label, debounce,
     toast, fail, confirm, prompt, modal, print, printReceipt, printKot,
     unlockAudio, audioReady, beep, nav, refreshReady: pollReady,

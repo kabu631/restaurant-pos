@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Account — Restaurant POS</title>
+  <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
+  <script src="/static/js/pos.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<div id="pos-nav"></div>
+
+<main class="p-3 sm:p-5 max-w-2xl mx-auto space-y-4">
+  <section id="me" class="bg-white rounded-2xl shadow-sm p-5"></section>
+
+  <section class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-gray-900 mb-1">What you can do</h2>
+    <p class="text-sm text-gray-500 mb-3">Set by your admin. Ask them if you need something else.</p>
+    <ul id="perms" class="grid sm:grid-cols-2 gap-2"></ul>
+  </section>
+
+  <section class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-gray-900 mb-1">Change my PIN</h2>
+    <p class="text-sm text-gray-500 mb-3">4 digits for quick login on shared tills.</p>
+    <form id="pin-form" class="grid sm:grid-cols-3 gap-2 items-end">
+      <label class="text-sm font-medium text-gray-700">Your password
+        <input name="current_password" type="password" required autocomplete="current-password" class="mt-1 w-full border rounded-xl px-3 py-2.5"></label>
+      <label class="text-sm font-medium text-gray-700">New PIN
+        <input name="new_pin" inputmode="numeric" maxlength="4" required autocomplete="off" class="mt-1 w-full border rounded-xl px-3 py-2.5 tracking-widest" placeholder="••••"></label>
+      <button class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold">Save PIN</button>
+    </form>
+  </section>
+
+  <section class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-gray-900 mb-3">Change my password</h2>
+    <form id="pw-form" class="grid gap-2 max-w-sm">
+      <input name="current_password" type="password" required placeholder="Current password" autocomplete="current-password" class="border rounded-xl px-3 py-2.5">
+      <input name="new_password" type="password" required minlength="6" placeholder="New password (6+ characters)" autocomplete="new-password" class="border rounded-xl px-3 py-2.5">
+      <input name="confirm" type="password" required placeholder="Confirm new password" autocomplete="new-password" class="border rounded-xl px-3 py-2.5">
+      <button class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold">Update password</button>
+    </form>
+  </section>
+</main>
+
+<script>
+const { api, esc, toast, fail } = POS;
+
+async function init() {
+  if (!POS.requireLogin()) return;
+  POS.nav('/account');
+  const me = await POS.refreshMe() || POS.user();
+  render(me);
+  document.addEventListener('pos:permissions', e => render(e.detail));
+
+  const pf = document.getElementById('pin-form');
+  pf.new_pin.oninput = () => { pf.new_pin.value = pf.new_pin.value.replace(/\D/g, ''); };
+  pf.onsubmit = async e => {
+    e.preventDefault();
+    if (!/^\d{4}$/.test(pf.new_pin.value)) { toast('PIN must be exactly 4 digits', { type: 'error' }); return; }
+    try {
+      await api('/api/auth/change-pin', { method: 'POST', body: { current_password: pf.current_password.value, new_pin: pf.new_pin.value } });
+      toast('PIN changed'); pf.reset();
+    } catch (err) { fail(err); }
+  };
+  const wf = document.getElementById('pw-form');
+  wf.onsubmit = async e => {
+    e.preventDefault();
+    if (wf.new_password.value !== wf.confirm.value) { toast('The new passwords don’t match', { type: 'error' }); return; }
+    try {
+      await api('/api/auth/change-password', { method: 'POST', body: { current_password: wf.current_password.value, new_password: wf.new_password.value } });
+      toast('Password changed'); wf.reset();
+    } catch (err) { fail(err); }
+  };
+}
+
+async function render(me) {
+  const initials = (me.full_name || me.username || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  document.getElementById('me').innerHTML = `
+    <div class="flex items-center gap-4">
+      <div class="w-16 h-16 rounded-full bg-blue-600 text-white text-xl font-bold flex items-center justify-center">${esc(initials)}</div>
+      <div class="min-w-0">
+        <p class="text-xl font-extrabold text-gray-900">${esc(me.full_name || '')}</p>
+        <p class="text-sm text-gray-500">@${esc(me.username || '')} · ${esc(me.role_label || me.role || '')} · ${esc(me.restaurant_name || '')}</p>
+        <a href="${esc(me.home || '/tables')}" class="inline-block mt-2 text-sm font-semibold text-blue-700 hover:underline">Go to my screen →</a>
+      </div>
+    </div>`;
+  if (POS.isAdmin(me)) {
+    document.getElementById('perms').innerHTML = '<li class="sm:col-span-2 text-sm bg-blue-50 text-blue-800 rounded-xl px-3 py-2.5">👑 You are the admin — you can do everything, and choose what everyone else can do in <a class="underline font-semibold" href="/settings#roles">Settings › Roles & permissions</a>.</li>';
+    return;
+  }
+  const ALL = {
+    'orders.take': 'Take orders & send to kitchen', 'orders.cancel': 'Cancel orders (before the kitchen)',
+    'orders.transfer': 'Move tables', 'orders.serve': 'Mark food served',
+    'kitchen.manage': 'Run the kitchen screen', 'menu.availability': 'Mark dishes sold out',
+    'billing.pay': 'Take payment & print bills', 'billing.discount': `Give discounts (up to ${me.discount_limit ?? 10}%)`,
+    'billing.void': 'Void paid bills', 'cash.shift': 'Open & close the cash drawer',
+    'bookings.manage': 'Manage bookings', 'reports.view': 'See sales reports',
+  };
+  document.getElementById('perms').innerHTML = Object.entries(ALL).map(([k, label]) => {
+    const yes = (me.permissions || []).includes(k);
+    return `<li class="flex items-center gap-2 text-sm rounded-xl px-3 py-2 ${yes ? 'bg-green-50 text-green-900' : 'bg-gray-50 text-gray-400'}">
+      <span>${yes ? '✅' : '—'}</span>${esc(label)}</li>`;
+  }).join('');
+}
+
+init();
+</script>
+</body>
+</html>

@@ -9,8 +9,10 @@ from typing import Optional
 
 from app.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from app.database import get_db
+from app.models.audit import AuditTrail
 from app.models.user import User
 from app.models.restaurant import Restaurant
+from app.services.permissions import ROLE_LABELS, discount_limit, permissions_for
 from app.utils import nepal
 from app.utils.security import verify_password, create_access_token, decode_token
 
@@ -100,7 +102,23 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.id == int(payload.get("sub"))).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    if int(payload.get("sv", 0)) != (user.session_version or 0):
+        # An admin signed this person out (or changed their password/role) — end the session now
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="You were signed out. Please log in again.")
+    _touch(db, user)
     return user
+
+
+def _touch(db: Session, user: User) -> None:
+    """Remember when staff were last active (at most once a minute) for "online now"."""
+    now = nepal.now()
+    if user.last_seen_at is None or (now - user.last_seen_at).total_seconds() > 60:
+        user.last_seen_at = now
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
 
 def require_roles(*roles):
@@ -126,26 +144,53 @@ def require_admin(current_user: User = Depends(get_current_user)):
 
 # --- Helper ---
 
-def _user_dict(user: User, restaurant: Optional[Restaurant]) -> dict:
+def _user_dict(user: User, restaurant: Optional[Restaurant], db: Session) -> dict:
     return {
         "id": user.id,
         "username": user.username,
         "full_name": user.full_name,
         "role": user.role,
+        "role_label": ROLE_LABELS.get(user.role, user.role),
         "restaurant_id": user.restaurant_id,
         "restaurant_name": restaurant.name if restaurant else None,
         "restaurant_slug": restaurant.slug if restaurant else None,
         "home": HOME_PAGE.get(user.role, "/dashboard"),
         "fiscal_year": nepal.fiscal_year(),
+        "permissions": sorted(permissions_for(db, user)),
+        "discount_limit": discount_limit(db, user.restaurant_id),
+        "has_pin": bool(user.pin),
     }
 
 
-def _issue(response: Response, user: User, restaurant: Optional[Restaurant]) -> dict:
-    token = create_access_token({"sub": user.id, "role": user.role, "rid": user.restaurant_id})
+def within_shift(user: User, at=None) -> bool:
+    """Login hours (Nepal time).  Empty = any time; admins are never limited.
+    Handles overnight shifts such as 18:00–02:00."""
+    if user.role in ("admin", "superadmin") or not (user.shift_start and user.shift_end):
+        return True
+    now = (at or nepal.now()).strftime("%H:%M")
+    start, end = user.shift_start, user.shift_end
+    return start <= now < end if start < end else (now >= start or now < end)
+
+
+def _admit(db: Session, request: Request, user: User, how: str) -> None:
+    if not within_shift(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Your login hours are {user.shift_start}–{user.shift_end}. "
+                                   f"Ask your admin if you need to log in now.")
+    user.last_login = user.last_seen_at = nepal.now()
+    db.add(AuditTrail(restaurant_id=user.restaurant_id, user_id=user.id, action="LOGIN",
+                      table_name="users", record_id=user.id,
+                      new_value=f'{{"method": "{how}"}}', ip_address=_client_ip(request)))
+    db.commit()
+
+
+def _issue(response: Response, user: User, restaurant: Optional[Restaurant], db: Session) -> dict:
+    token = create_access_token({"sub": user.id, "role": user.role, "rid": user.restaurant_id,
+                                 "sv": user.session_version or 0})
     # HttpOnly cookie lets print pages (/receipt, /kot-print) authenticate without a token in the URL
     response.set_cookie("access_token", token, httponly=True, samesite="lax",
                         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-    return {"access_token": token, "token_type": "bearer", "user": _user_dict(user, restaurant)}
+    return {"access_token": token, "token_type": "bearer", "user": _user_dict(user, restaurant, db)}
 
 
 # --- Endpoints ---
@@ -183,9 +228,8 @@ def login(body: LoginRequest, request: Request, response: Response, db: Session 
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
 
     _clear_failures(guard_key)
-    user.last_login = nepal.now()
-    db.commit()
-    return _issue(response, user, restaurant)
+    _admit(db, request, user, "password")
+    return _issue(response, user, restaurant, db)
 
 
 @router.post("/pin-login", response_model=TokenResponse)
@@ -214,9 +258,8 @@ def pin_login(body: PinLoginRequest, request: Request, response: Response,
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid PIN")
 
     _clear_failures(guard_key)
-    user.last_login = nepal.now()
-    db.commit()
-    return _issue(response, user, restaurant)
+    _admit(db, request, user, "pin")
+    return _issue(response, user, restaurant, db)
 
 
 @router.post("/logout")
@@ -231,4 +274,28 @@ def get_me(current_user: User = Depends(get_current_user), db: Session = Depends
     restaurant = None
     if current_user.restaurant_id:
         restaurant = db.query(Restaurant).filter(Restaurant.id == current_user.restaurant_id).first()
-    return _user_dict(current_user, restaurant)
+    return _user_dict(current_user, restaurant, db)
+
+
+class ChangePin(BaseModel):
+    current_password: str
+    new_pin: str
+
+
+@router.post("/change-pin")
+def change_own_pin(body: ChangePin, current_user: User = Depends(get_current_user),
+                   db: Session = Depends(get_db)):
+    """Any staff member can change their own quick-login PIN (password required)."""
+    if not verify_password(body.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if not (body.new_pin.isdigit() and len(body.new_pin) == 4):
+        raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+    clash = db.query(User).filter(User.restaurant_id == current_user.restaurant_id,
+                                  User.pin == body.new_pin, User.id != current_user.id).first()
+    if clash:
+        raise HTTPException(status_code=409, detail="That PIN is already used by another staff member")
+    current_user.pin = body.new_pin
+    db.add(AuditTrail(restaurant_id=current_user.restaurant_id, user_id=current_user.id,
+                      action="CHANGE_OWN_PIN", table_name="users", record_id=current_user.id))
+    db.commit()
+    return {"ok": True}

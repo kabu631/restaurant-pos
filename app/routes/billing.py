@@ -16,7 +16,8 @@ from app.models.table import RestaurantTable
 from app.models.user import User
 from app.models.inventory import Ingredient
 from app.models.recipe import RecipeIngredient
-from app.routes.auth import get_current_user, require_roles, require_admin
+from app.services.permissions import discount_limit, has_perm, require_perm, verify_override
+from app.routes.auth import get_current_user
 from app.services import audit
 from app.services import fonepay as fonepay_svc
 from app.services import order_ops as ops
@@ -28,9 +29,6 @@ from app.services.restaurant_settings import (PAYMENT_METHODS, QR_METHODS, enabl
 from app.utils import nepal
 
 _log = logging.getLogger(__name__)
-
-# Billing: admin + cashier only; void requires admin
-_billing_user = require_roles("admin", "cashier", "superadmin")
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
@@ -194,6 +192,7 @@ class BillCreate(BaseModel):
     include_service_charge: bool = True
     customer_name: Optional[str] = None
     customer_pan: Optional[str] = None
+    override_pin: Optional[str] = None     # admin's PIN approving a discount above the limit
 
 class BillPreview(BaseModel):
     order_id: int
@@ -215,6 +214,7 @@ class CheckoutRequest(BaseModel):
     customer_name: Optional[str] = None
     customer_pan: Optional[str] = None
     payments: List[PaymentIn]
+    override_pin: Optional[str] = None
 
 class BillPay(BaseModel):
     payment_method: str
@@ -227,9 +227,11 @@ class BillUpdate(BaseModel):
     discount_type: Optional[str] = None
     discount_value: Optional[float] = None
     include_service_charge: Optional[bool] = None
+    override_pin: Optional[str] = None
 
 class VoidReason(BaseModel):
     reason: str
+    override_pin: Optional[str] = None     # needed when the user can't void bills themselves
 
 
 def _validate_payments(db: Session, restaurant_id: int, payments: List[PaymentIn],
@@ -261,6 +263,31 @@ def _validate_payments(db: Session, restaurant_id: int, payments: List[PaymentIn
         raise HTTPException(status_code=400,
                             detail=f"Payments add up to {total:.2f} but the bill is {grand_total:.2f}")
     return payments
+
+
+def _approve_discount(db: Session, user: User, rid: int, totals: dict,
+                      override_pin: Optional[str]) -> Optional[User]:
+    """Discounts need the billing.discount permission and must stay within the
+    restaurant's limit; otherwise the admin approves with their PIN.  Returns the
+    approving admin (None when no approval was needed)."""
+    if not totals["discount_amount"] or user.role in ("admin", "superadmin"):
+        return None
+    limit = discount_limit(db, rid)
+    pct = totals["discount_amount"] / totals["subtotal"] * 100 if totals["subtotal"] else 0
+    allowed = has_perm(db, user, "billing.discount")
+    if allowed and pct <= limit + 0.001:
+        return None
+    if not override_pin:
+        why = (f"Discounts above {limit:g}% need the admin's approval" if allowed
+               else "Discounts need the admin's approval")
+        raise HTTPException(status_code=403, detail=why, headers={"X-Needs-Override": "1"})
+    return verify_override(db, rid, override_pin)
+
+
+def _same_discount(bill: Optional[Bill], discount_type: Optional[str], value: float) -> bool:
+    """The open bill already carries this (approved) discount."""
+    return bool(bill and bill.discount_type == discount_type
+                and abs((bill.discount_value or 0) - (value or 0)) < 0.005)
 
 
 # --- Endpoints ---
@@ -316,7 +343,7 @@ def preview_bill(body: BillPreview, db: Session = Depends(get_db),
 
 @router.post("/checkout")
 def checkout(body: CheckoutRequest, db: Session = Depends(get_db),
-             current_user: User = Depends(_billing_user)):
+             current_user: User = Depends(require_perm("billing.pay"))):
     """Settle an order in one step: issue the bill (or reuse its open one), record the
     payment(s), close the order and free the table.  Unsent items go to the kitchen."""
     rid = ops.restaurant_id_of(current_user)
@@ -335,6 +362,8 @@ def checkout(body: CheckoutRequest, db: Session = Depends(get_db),
     totals = compute_totals(lines, discount_type, body.discount_value,
                             body.include_service_charge, tax_config(db, rid))
     payments = _validate_payments(db, rid, body.payments, totals["grand_total"])
+    approver = (None if _same_discount(bill, discount_type, body.discount_value)
+                else _approve_discount(db, current_user, rid, totals, body.override_pin))
 
     with db_transaction(db):
         ops.lock_restaurant(db, rid)
@@ -355,6 +384,8 @@ def checkout(body: CheckoutRequest, db: Session = Depends(get_db),
             "bill_number": bill.bill_number,
             "grand_total": bill.grand_total,
             "payments": [{"method": p.method, "amount": p.amount} for p in payments],
+            **({"discount": totals["discount_amount"], "approved_by": approver.full_name}
+               if approver else {}),
         })
         db.commit()
         db.refresh(bill)
@@ -367,7 +398,7 @@ def checkout(body: CheckoutRequest, db: Session = Depends(get_db),
 
 @router.post("/bills", status_code=status.HTTP_201_CREATED)
 def create_bill(body: BillCreate, db: Session = Depends(get_db),
-                current_user: User = Depends(_billing_user)):
+                current_user: User = Depends(require_perm("billing.pay"))):
     """Create the bill for an order so it can be printed for the guest; payment is
     taken later (checkout reuses this bill and its number).  Anything not yet sent
     goes to the kitchen now — billed food must always be made."""
@@ -385,18 +416,22 @@ def create_bill(body: BillCreate, db: Session = Depends(get_db),
     lines = order_lines(db, order.id)
     if not lines:
         raise HTTPException(status_code=400, detail="Order has no items")
+    totals = compute_totals(lines, discount_type, body.discount_value,
+                            body.include_service_charge, tax_config(db, rid))
+    approver = _approve_discount(db, current_user, rid, totals, body.override_pin)
 
     with db_transaction(db):
         ops.lock_restaurant(db, rid)
         kot = ops.send_kot(db, order) if order.status == "active" else None
         bill = _new_bill(db, order, current_user)
-        apply_totals(bill, compute_totals(lines, discount_type, body.discount_value,
-                                          body.include_service_charge, tax_config(db, rid)))
+        apply_totals(bill, totals)
         bill.customer_name = (body.customer_name or "").strip() or order.customer_name
         bill.customer_pan = (body.customer_pan or "").strip() or None
         db.flush()  # assign bill.id
         audit.record(db, current_user, "CREATE_BILL", "bills", bill.id,
-                     {"bill_number": bill.bill_number, "grand_total": bill.grand_total})
+                     {"bill_number": bill.bill_number, "grand_total": bill.grand_total,
+                      **({"discount": totals["discount_amount"], "approved_by": approver.full_name}
+                         if approver else {})})
         db.commit()
         db.refresh(bill)
 
@@ -414,7 +449,7 @@ def list_bills(
     search: Optional[str] = None,      # bill number / customer name
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: User = Depends(_billing_user),
+    current_user: User = Depends(require_perm("billing.pay", "reports.view")),
 ):
     q = db.query(Bill)
     if current_user.restaurant_id:
@@ -438,13 +473,13 @@ def list_bills(
 
 @router.get("/bills/{bill_id}")
 def get_bill(bill_id: int, db: Session = Depends(get_db),
-             current_user: User = Depends(_billing_user)):
+             current_user: User = Depends(require_perm("billing.pay", "reports.view"))):
     return _bill_response(_get_bill(db, bill_id, current_user), db)
 
 
 @router.get("/bills/by-order/{order_id}")
 def get_bill_by_order(order_id: int, db: Session = Depends(get_db),
-                      current_user: User = Depends(_billing_user)):
+                      current_user: User = Depends(require_perm("billing.pay"))):
     q = db.query(Bill).filter(Bill.order_id == order_id, Bill.payment_status != "void")
     if current_user.restaurant_id:
         q = q.filter(Bill.restaurant_id == current_user.restaurant_id)
@@ -456,7 +491,7 @@ def get_bill_by_order(order_id: int, db: Session = Depends(get_db),
 
 @router.post("/bills/{bill_id}/pay")
 def pay_bill(bill_id: int, body: BillPay, db: Session = Depends(get_db),
-             current_user: User = Depends(_billing_user)):
+             current_user: User = Depends(require_perm("billing.pay"))):
     bill = _get_bill(db, bill_id, current_user)
     if bill.payment_status == "paid":
         raise HTTPException(status_code=400, detail="Bill is already paid")
@@ -484,10 +519,13 @@ def pay_bill(bill_id: int, body: BillPay, db: Session = Depends(get_db),
 
 @router.post("/bills/{bill_id}/void")
 def void_bill(bill_id: int, body: VoidReason, db: Session = Depends(get_db),
-              current_user: User = Depends(require_admin)):
-    """Admin-only.  Voiding a paid bill (refund) restores stock and cancels the order;
+              current_user: User = Depends(require_perm("billing.pay", "billing.void"))):
+    """Needs billing.void (admins always have it), or an admin approving with their PIN.
+    Voiding a paid bill (refund) restores stock and cancels the order;
     voiding an unpaid bill keeps the order open so it can be billed again."""
     bill = _get_bill(db, bill_id, current_user)
+    approver = (None if has_perm(db, current_user, "billing.void")
+                else verify_override(db, bill.restaurant_id, body.override_pin))
     if bill.payment_status == "void":
         raise HTTPException(status_code=409, detail="Bill is already voided")
     if not (body.reason or "").strip():
@@ -505,7 +543,8 @@ def void_bill(bill_id: int, body: VoidReason, db: Session = Depends(get_db),
             _deduct_inventory(bill.order_id, db, restore=True)
         audit.record(db, current_user, "VOID_BILL", "bills", bill.id,
                      {"was_paid": was_paid, "grand_total": bill.grand_total,
-                      "bill_number": bill.bill_number},
+                      "bill_number": bill.bill_number,
+                      **({"approved_by": approver.full_name} if approver else {})},
                      reason=body.reason)
         db.commit()
         db.refresh(bill)
@@ -515,7 +554,7 @@ def void_bill(bill_id: int, body: VoidReason, db: Session = Depends(get_db),
 
 @router.patch("/bills/{bill_id}/print")
 def record_print(bill_id: int, db: Session = Depends(get_db),
-                 current_user: User = Depends(_billing_user)):
+                 current_user: User = Depends(require_perm("billing.pay"))):
     bill = _get_bill(db, bill_id, current_user)
     bill.is_printed = True
     bill.print_count = (bill.print_count or 0) + 1
@@ -527,7 +566,7 @@ def record_print(bill_id: int, db: Session = Depends(get_db),
 
 @router.post("/bills/{bill_id}/print-thermal")
 def print_thermal(bill_id: int, db: Session = Depends(get_db),
-                  current_user: User = Depends(_billing_user)):
+                  current_user: User = Depends(require_perm("billing.pay"))):
     """Send the receipt to the configured thermal printer (counts as a print)."""
     bill = _get_bill(db, bill_id, current_user)
     path = printer_path(db, bill.restaurant_id)
@@ -549,7 +588,7 @@ def print_thermal(bill_id: int, db: Session = Depends(get_db),
 
 @router.patch("/bills/{bill_id}/update")
 def update_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db),
-                current_user: User = Depends(_billing_user)):
+                current_user: User = Depends(require_perm("billing.pay"))):
     bill = _get_bill(db, bill_id, current_user)
     if bill.payment_status == "paid":
         raise HTTPException(status_code=400, detail="Cannot modify a paid bill")
@@ -567,8 +606,15 @@ def update_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db),
         dt = validate_discount(dt, dv)
         service = (body.include_service_charge if body.include_service_charge is not None
                    else (bill.service_charge or 0) > 0)
-        apply_totals(bill, compute_totals(order_lines(db, bill.order_id), dt, dv, service,
-                                          tax_config(db, bill.restaurant_id)))
+        totals = compute_totals(order_lines(db, bill.order_id), dt, dv, service,
+                                tax_config(db, bill.restaurant_id))
+        if not _same_discount(bill, dt, dv):
+            approver = _approve_discount(db, current_user, bill.restaurant_id, totals, body.override_pin)
+            audit.record(db, current_user, "BILL_DISCOUNT", "bills", bill.id,
+                         {"discount": totals["discount_amount"],
+                          "approved_by": approver.full_name if approver else None},
+                         old={"discount": bill.discount_amount})
+        apply_totals(bill, totals)
 
     db.commit()
     db.refresh(bill)
@@ -577,7 +623,7 @@ def update_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db),
 
 @router.post("/bills/{bill_id}/fonepay-qr")
 async def initiate_fonepay_qr(bill_id: int, db: Session = Depends(get_db),
-                              current_user: User = Depends(_billing_user)):
+                              current_user: User = Depends(require_perm("billing.pay"))):
     bill = _get_bill(db, bill_id, current_user)
     if bill.payment_status != "unpaid":
         raise HTTPException(status_code=400, detail=f"Bill is {bill.payment_status}")
@@ -641,7 +687,7 @@ async def fonepay_callback(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/bills/{bill_id}/payment-status")
 def payment_status(bill_id: int, db: Session = Depends(get_db),
-                   current_user: User = Depends(_billing_user)):
+                   current_user: User = Depends(require_perm("billing.pay"))):
     bill = _get_bill(db, bill_id, current_user)
     return {"bill_id": bill.id, "payment_status": bill.payment_status,
             "payment_method": bill.payment_method}
@@ -667,7 +713,7 @@ def payment_breakdown(db: Session, bills: list) -> dict:
 
 @router.get("/summary/today")
 def today_summary(db: Session = Depends(get_db),
-                  current_user: User = Depends(_billing_user)):
+                  current_user: User = Depends(require_perm("billing.pay", "reports.view"))):
     today = nepal.today()
     start, end = nepal.day_bounds(today)
     q = db.query(Bill).filter(

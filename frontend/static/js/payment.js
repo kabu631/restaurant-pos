@@ -168,7 +168,9 @@
           </details>
 
           <div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Discount</p>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Discount
+              ${POS.isAdmin() ? '' : `<span class="normal-case font-normal tracking-normal text-gray-400">· ${POS.can('billing.discount')
+                ? `above ${POS.user().discount_limit ?? 10}% needs the admin's PIN` : "needs the admin's PIN"}</span>`}</p>
             <div class="flex flex-wrap gap-2">
               ${discountChips}
               <button data-act="disc-custom" class="px-3 py-2 rounded-lg text-sm font-medium border ${customDisc ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}">${customDisc ? (st.discountType === 'flat' ? 'Rs ' + num(st.discountValue) : st.discountValue + '%') : 'Other…'}</button>
@@ -484,19 +486,26 @@
 
     /** The order's bill with the dialog's current discount/service/customer applied. */
     async ensureBill() {
-      const update = id => api(`/api/billing/bills/${id}/update`, { method: 'PATCH', body: this.billFields() });
-      if (this.st.issued) return update(this.st.issued.id);
-      try {
-        const f = this.billFields();
-        return await api('/api/billing/bills', { method: 'POST', body: {
-          order_id: this.orderId, ...f, discount_type: f.discount_type || null,
-          customer_name: f.customer_name || null, customer_pan: f.customer_pan || null,
-        }});
-      } catch (e) {
-        const existing = e.status === 409 && e.headers && e.headers.get('X-Bill-Id');
-        if (!existing) throw e;
-        return update(Number(existing));            // someone else created it a moment ago
-      }
+      // A discount above the cashier's limit is approved by the admin's PIN
+      const bill = await POS.withApproval(async pin => {
+        const update = id => api(`/api/billing/bills/${id}/update`,
+          { method: 'PATCH', body: { ...this.billFields(), override_pin: pin } });
+        if (this.st.issued) return update(this.st.issued.id);
+        try {
+          const f = this.billFields();
+          return await api('/api/billing/bills', { method: 'POST', body: {
+            order_id: this.orderId, ...f, discount_type: f.discount_type || null,
+            customer_name: f.customer_name || null, customer_pan: f.customer_pan || null,
+            override_pin: pin,
+          }});
+        } catch (e) {
+          const existing = e.status === 409 && e.headers && e.headers.get('X-Bill-Id');
+          if (!existing) throw e;
+          return update(Number(existing));            // someone else created it a moment ago
+        }
+      });
+      if (!bill) throw new Error('Not approved — the bill was not changed');
+      return bill;
     }
 
     async confirm() {
@@ -504,7 +513,13 @@
       this.st.busy = true;
       this.updateComputed();
       try {
-        const bill = await api('/api/billing/checkout', { method: 'POST', body: this.payload() });
+        const bill = await POS.withApproval(pin => api('/api/billing/checkout',
+          { method: 'POST', body: { ...this.payload(), override_pin: pin } }));
+        if (!bill) {                                  // admin approval cancelled
+          this.st.busy = false;
+          this.updateComputed();
+          return;
+        }
         this.paid(bill);
       } catch (e) {
         this.st.busy = false;

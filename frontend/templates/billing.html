@@ -14,6 +14,9 @@
 
 <main class="p-3 sm:p-5 max-w-7xl mx-auto space-y-4">
 
+  <!-- Cash drawer (shift) -->
+  <section id="drawer" class="hidden"></section>
+
   <!-- Today at a glance -->
   <section id="summary" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></section>
 
@@ -21,6 +24,7 @@
   <div class="flex gap-1 bg-white rounded-xl p-1 shadow-sm w-fit">
     <button data-tab="open" onclick="setTab('open')" class="tab px-4 py-2 rounded-lg text-sm font-semibold">💳 Ready to bill <span id="open-count" class="ml-1 text-xs"></span></button>
     <button data-tab="bills" onclick="setTab('bills')" class="tab px-4 py-2 rounded-lg text-sm font-semibold">🧾 Bills</button>
+    <button data-tab="shifts" onclick="setTab('shifts')" class="tab hidden px-4 py-2 rounded-lg text-sm font-semibold">💵 Cash shifts</button>
   </div>
 
   <!-- Open orders -->
@@ -66,25 +70,49 @@
       </table>
     </div>
   </section>
+
+  <!-- Cash shift history -->
+  <section id="tab-shifts" class="hidden bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-left">
+          <tr>
+            <th class="px-4 py-2.5 font-medium">Shift</th>
+            <th class="px-3 py-2.5 font-medium">Opened</th>
+            <th class="px-3 py-2.5 font-medium">Closed</th>
+            <th class="px-3 py-2.5 font-medium text-right">Sales</th>
+            <th class="px-3 py-2.5 font-medium text-right">Expected cash</th>
+            <th class="px-3 py-2.5 font-medium text-right">Counted</th>
+            <th class="px-3 py-2.5 font-medium text-right">Over / short</th>
+            <th class="px-3 py-2.5"></th>
+          </tr>
+        </thead>
+        <tbody id="shifts-body"></tbody>
+      </table>
+    </div>
+  </section>
 </main>
 
 <script>
 const { api, esc, money, num, toast, fail } = POS;
-const ME = POS.user();
-const IS_ADMIN = ['admin', 'superadmin'].includes(ME.role);
 let tab = 'open';
+let drawer = null;       // the open cash shift, or null
 
 async function init() {
-  if (!POS.guard(['admin', 'cashier', 'superadmin'])) return;
+  if (!POS.guardPerm('billing.pay')) return;
   POS.nav('/billing');
+  const showShifts = () => document.querySelector('[data-tab=shifts]').classList.toggle('hidden', !POS.can('cash.shift', 'reports.view'));
+  showShifts();
+  document.addEventListener('pos:permissions', () => { showShifts(); loadDrawer(); });
+  loadDrawer();
   document.getElementById('f-date').value = POS.todayISO();
   ['f-date', 'f-status'].forEach(id => document.getElementById(id).onchange = loadBills);
   document.getElementById('f-search').oninput = POS.debounce(loadBills, 300);
-  document.addEventListener('pos:paid', () => { loadSummary(); loadOpen(); });
+  document.addEventListener('pos:paid', () => { loadSummary(); loadOpen(); loadDrawer(); });
   setTab(new URLSearchParams(location.search).get('tab') === 'bills' ? 'bills' : 'open');
   loadSummary();
   loadOpen();
-  setInterval(() => { if (!document.hidden) loadSummary(); }, 30000);
+  setInterval(() => { if (!document.hidden) { loadSummary(); loadDrawer(); } }, 30000);
   setInterval(() => { if (!document.hidden && tab === 'open') loadOpen(); }, 8000);
 
   // Old links from the floor plan: /billing?order_id=12 opens the pay dialog directly
@@ -100,7 +128,144 @@ function setTab(t) {
   });
   document.getElementById('tab-open').classList.toggle('hidden', t !== 'open');
   document.getElementById('tab-bills').classList.toggle('hidden', t !== 'bills');
+  document.getElementById('tab-shifts').classList.toggle('hidden', t !== 'shifts');
   if (t === 'bills') loadBills();
+  if (t === 'shifts') loadShifts();
+}
+
+// ── Cash drawer ─────────────────────────────────────────────────────────────
+async function loadDrawer() {
+  const host = document.getElementById('drawer');
+  if (!POS.can('cash.shift')) { host.classList.add('hidden'); return; }
+  try { drawer = (await api('/api/shifts/current')).shift; } catch (e) { return; }
+  host.classList.remove('hidden');
+  if (!drawer) {
+    host.innerHTML = `
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center gap-3">
+        <span class="text-2xl">💵</span>
+        <div class="flex-1 min-w-[12rem]">
+          <p class="font-bold text-amber-900">The cash drawer is closed</p>
+          <p class="text-sm text-amber-800">Open it with the float at the start of your shift, so the cash can be checked at the end.</p>
+        </div>
+        <button onclick="openDrawer()" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold">Open drawer</button>
+      </div>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-sm p-3 sm:p-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+        <div>
+          <p class="font-bold text-gray-900">Cash drawer open</p>
+          <p class="text-xs text-gray-500">${esc(drawer.opened_by || '')} · since ${POS.time(drawer.opened_at)}</p>
+        </div>
+      </div>
+      <div class="text-sm"><p class="text-gray-500 text-xs">Float</p><p class="font-semibold tabular-nums">${num(drawer.opening_float)}</p></div>
+      <div class="text-sm"><p class="text-gray-500 text-xs">Cash sales</p><p class="font-semibold tabular-nums">${num(drawer.cash_sales)}</p></div>
+      ${drawer.pay_in || drawer.pay_out ? `<div class="text-sm"><p class="text-gray-500 text-xs">In / out</p><p class="font-semibold tabular-nums">+${num(drawer.pay_in)} / −${num(drawer.pay_out)}</p></div>` : ''}
+      <div class="text-sm"><p class="text-gray-500 text-xs">Should be in drawer</p><p class="font-extrabold text-green-700 tabular-nums">${money(drawer.expected_cash)}</p></div>
+      <div class="flex-1"></div>
+      <div class="flex gap-2">
+        <button onclick="cashMove()" class="px-4 py-2 rounded-xl border font-semibold text-sm hover:bg-gray-50">± Cash in / out</button>
+        <button onclick="closeDrawer()" class="px-4 py-2 rounded-xl bg-gray-900 hover:bg-black text-white font-semibold text-sm">Close & count</button>
+      </div>
+    </div>`;
+}
+
+async function openDrawer() {
+  const v = await POS.prompt('Open the cash drawer', {
+    message: 'How much cash is in the drawer to start with (the float for change)?',
+    type: 'number', inputmode: 'decimal', placeholder: '0', chips: ['0', '1000', '2000', '5000'], okText: 'Open drawer',
+  });
+  if (v === null) return;
+  try {
+    await api('/api/shifts/open', { method: 'POST', body: { opening_float: Number(v) || 0 } });
+    toast('Cash drawer opened');
+    loadDrawer();
+  } catch (e) { fail(e); }
+}
+
+function cashMove() {
+  POS.modal(`
+    <form>
+      <h2 class="text-lg font-bold text-gray-900 mb-3">Cash in / out</h2>
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        <label class="flex items-center justify-center gap-2 border rounded-xl py-3 cursor-pointer has-[:checked]:bg-red-50 has-[:checked]:border-red-400">
+          <input type="radio" name="kind" value="out" checked> ➖ Take out</label>
+        <label class="flex items-center justify-center gap-2 border rounded-xl py-3 cursor-pointer has-[:checked]:bg-green-50 has-[:checked]:border-green-400">
+          <input type="radio" name="kind" value="in"> ➕ Put in</label>
+      </div>
+      <input name="amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Amount" required
+        class="w-full border rounded-xl px-3 py-3 mb-2 text-lg">
+      <input name="reason" placeholder="What for? e.g. Vegetables, Gas, Bank deposit" required
+        class="w-full border rounded-xl px-3 py-3">
+      <div class="flex flex-wrap gap-2 mt-2">
+        ${['Vegetables', 'Gas', 'Staff meal', 'Bank deposit', 'Change from bank'].map(c => `<button type="button" data-chip="${c}" class="px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-sm">${c}</button>`).join('')}
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button type="button" data-x class="flex-1 py-3 rounded-xl border font-medium">Cancel</button>
+        <button class="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold">Save</button>
+      </div>
+    </form>`, {
+    onMount: (w, close) => {
+      const f = w.querySelector('form');
+      w.querySelector('[data-x]').onclick = () => close(null);
+      w.querySelectorAll('[data-chip]').forEach(b => b.onclick = () => { f.reason.value = b.dataset.chip; });
+      f.onsubmit = async e => {
+        e.preventDefault();
+        try {
+          await api('/api/shifts/current/movement', { method: 'POST', body: {
+            kind: f.kind.value, amount: Number(f.amount.value), reason: f.reason.value } });
+          toast('Saved');
+          close(true);
+          loadDrawer();
+        } catch (err) { fail(err); }
+      };
+      setTimeout(() => f.amount.focus(), 30);
+    },
+  });
+}
+
+async function closeDrawer() {
+  const v = await POS.prompt('Close & count the cash', {
+    message: 'Count all the cash in the drawer (including the float) and enter the total.',
+    type: 'number', inputmode: 'decimal', placeholder: 'Counted cash', required: true, okText: 'Close drawer',
+  });
+  if (v === null || v === '') return;
+  try {
+    const s = await api('/api/shifts/current/close', { method: 'POST', body: { counted_cash: Number(v) } });
+    const d = s.difference;
+    const msg = Math.abs(d) < 0.005 ? 'Cash matches exactly ✓'
+      : d < 0 ? `Cash is SHORT by ${money(-d)}` : `Cash is OVER by ${money(d)}`;
+    toast(`Drawer closed — ${msg}`, { type: Math.abs(d) < 0.005 ? 'ok' : 'warn', timeout: 8000 });
+    POS.print(`/shift-report/${s.id}`);
+    loadDrawer();
+    if (tab === 'shifts') loadShifts();
+  } catch (e) { fail(e); }
+}
+
+async function loadShifts() {
+  let rows;
+  try { rows = await api('/api/shifts?limit=60'); } catch (e) { fail(e); return; }
+  const diff = s => {
+    if (s.difference === null || s.difference === undefined) return '<span class="text-gray-400">—</span>';
+    if (Math.abs(s.difference) < 0.005) return '<span class="text-green-700 font-semibold">✓ exact</span>';
+    return s.difference < 0
+      ? `<span class="text-red-600 font-bold">short ${num(-s.difference)}</span>`
+      : `<span class="text-amber-600 font-bold">over ${num(s.difference)}</span>`;
+  };
+  document.getElementById('shifts-body').innerHTML = rows.length ? rows.map(s => `
+    <tr class="border-t hover:bg-gray-50">
+      <td class="px-4 py-2.5 font-semibold">#${s.id} ${s.status === 'open' ? '<span class="ml-1 text-[11px] bg-green-100 text-green-800 rounded-full px-2 py-0.5">open</span>' : ''}</td>
+      <td class="px-3 py-2.5 whitespace-nowrap">${POS.dateTime(s.opened_at)}<span class="block text-xs text-gray-500">${esc(s.opened_by || '')}</span></td>
+      <td class="px-3 py-2.5 whitespace-nowrap">${s.closed_at ? POS.dateTime(s.closed_at) + `<span class="block text-xs text-gray-500">${esc(s.closed_by || '')}</span>` : '—'}</td>
+      <td class="px-3 py-2.5 text-right tabular-nums">${num(s.total_sales)}<span class="block text-xs text-gray-500">${s.bills} bill(s)</span></td>
+      <td class="px-3 py-2.5 text-right tabular-nums">${num(s.expected_cash)}</td>
+      <td class="px-3 py-2.5 text-right tabular-nums">${s.counted_cash !== null ? num(s.counted_cash) : '—'}</td>
+      <td class="px-3 py-2.5 text-right">${diff(s)}</td>
+      <td class="px-3 py-2.5 text-right"><button onclick="POS.print('/shift-report/${s.id}')" class="text-blue-700 font-semibold hover:underline">🖨 Report</button></td>
+    </tr>`).join('')
+    : '<tr><td colspan="8" class="px-4 py-12 text-center text-gray-400">No cash shifts yet</td></tr>';
 }
 
 async function loadSummary() {
@@ -212,7 +377,7 @@ async function loadBills() {
         <button onclick="POS.printReceipt(${b.id})" class="text-blue-700 font-semibold hover:underline mr-2">🖨 Print</button>
         <a href="/receipt/${b.id}" target="_blank" class="text-gray-600 hover:underline mr-2">View</a>
         ${b.payment_status === 'unpaid' ? `<button onclick="payOrder(${b.order_id})" class="text-green-700 font-semibold hover:underline mr-2">Pay</button>` : ''}
-        ${IS_ADMIN && b.payment_status !== 'void' ? `<button onclick="voidBill(${b.id}, '${esc(b.bill_number)}')" class="text-red-600 hover:underline">Void</button>` : ''}
+        ${b.payment_status !== 'void' ? `<button onclick="voidBill(${b.id}, '${esc(b.bill_number)}')" class="text-red-600 hover:underline">Void</button>` : ''}
       </td>
     </tr>`).join('')
     : '<tr><td colspan="7" class="px-4 py-12 text-center text-gray-400">No bills for this filter</td></tr>';
@@ -226,9 +391,12 @@ async function voidBill(id, number) {
   });
   if (!reason) return;
   try {
-    await api(`/api/billing/bills/${id}/void`, { method: 'POST', body: { reason } });
+    // Without the "void bills" permission the admin approves with their PIN
+    const done = await POS.withApproval(pin => api(`/api/billing/bills/${id}/void`,
+      { method: 'POST', body: { reason, override_pin: pin } }));
+    if (!done) return;
     toast(`Bill ${number} voided`);
-    loadBills(); loadSummary(); loadOpen();
+    loadBills(); loadSummary(); loadOpen(); loadDrawer();
   } catch (e) { fail(e); }
 }
 

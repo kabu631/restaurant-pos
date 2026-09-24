@@ -151,6 +151,52 @@
     </div>
   </div>
 
+  <!-- ── Roles & permissions ── -->
+  <div id="pane-roles" class="pane hidden">
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Who can do what</h2>
+      <p class="text-sm text-gray-500 mb-4">
+        The <b>admin</b> (you) can always do everything — manage staff, the menu, tables, stock and settings.
+        Choose what the other roles may do. Changes apply to everyone within a couple of minutes, no need to log out.
+      </p>
+      <div class="overflow-x-auto -mx-2">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-gray-500 border-b">
+              <th class="py-2 px-2 font-medium">Permission</th>
+              <th class="py-2 px-2 font-medium text-center w-20">Admin</th>
+              <th class="py-2 px-2 font-medium text-center w-20" data-role-h="cashier">Cashier</th>
+              <th class="py-2 px-2 font-medium text-center w-20" data-role-h="waiter">Waiter</th>
+              <th class="py-2 px-2 font-medium text-center w-20" data-role-h="kitchen">Kitchen</th>
+            </tr>
+          </thead>
+          <tbody id="perm-body"><tr><td colspan="5" class="py-6 text-center text-gray-400">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="mt-5 grid sm:grid-cols-2 gap-4 items-end">
+        <div>
+          <label class="form-label">Discount limit without the admin's PIN</label>
+          <div class="flex items-center gap-2">
+            <input id="perm-discount" type="number" min="0" max="100" step="1" class="form-input w-28"> <span class="text-gray-500">%</span>
+          </div>
+          <p class="hint">Staff with “Give discounts” can give up to this much. Anything above needs the admin to type their PIN on the till.</p>
+        </div>
+        <div class="flex gap-2 sm:justify-end">
+          <button class="btn-secondary" onclick="resetPerms()">Reset to defaults</button>
+          <button class="btn-primary" onclick="savePerms()">Save permissions</button>
+        </div>
+      </div>
+    </div>
+    <div class="section-card">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Admin approval (manager override)</h2>
+      <p class="text-sm text-gray-600">
+        When a cashier gives a bigger discount or voids a paid bill without permission, the till asks for the
+        <b>admin's PIN</b>. You type it on their screen — no need to log them out. Every approval is recorded with your
+        name in <a href="/activity" class="text-blue-700 underline">Activity</a>. Set your own PIN under <b>Security</b>.
+      </p>
+    </div>
+  </div>
+
   <!-- ── Backup ── -->
   <div id="pane-backup" class="pane hidden">
     <div class="section-card">
@@ -196,8 +242,9 @@ const { api, esc, toast, fail } = POS;
 const TABS = [
   ['profile', '🏪 Restaurant'], ['tax', '💰 Tax & charges'], ['payments', '💳 Payments'],
   ['receipt', '🧾 Receipt & printing'], ['kitchen', '👨‍🍳 Kitchen & orders'], ['devices', '📱 Devices'],
-  ['backup', '💾 Backup'], ['security', '🔐 Security'],
+  ['roles', '🛡 Roles & permissions'], ['backup', '💾 Backup'], ['security', '🔐 Security'],
 ];
+let PERMS = null;
 let DATA = null;
 
 async function init() {
@@ -222,6 +269,55 @@ function switchTab(t) {
   history.replaceState(null, '', `#${t}`);
   if (t === 'backup') loadBackupList();
   if (t === 'devices') loadDevices();
+  if (t === 'roles') loadPerms();
+}
+
+// ── Roles & permissions ────────────────────────────────────────────────────────
+async function loadPerms() {
+  try { PERMS = await api('/api/permissions'); } catch (e) { fail(e); return; }
+  renderPerms();
+}
+
+function renderPerms(useDefaults = false) {
+  const roles = PERMS.roles.map(r => r.key);
+  const has = (role, key) => {
+    const r = PERMS.roles.find(x => x.key === role);
+    return (useDefaults ? r.defaults : r.grants).includes(key);
+  };
+  let group = null;
+  document.getElementById('perm-body').innerHTML = PERMS.permissions.map(p => {
+    const head = p.group !== group
+      ? `<tr><td colspan="5" class="pt-4 pb-1 px-2 text-xs font-bold text-gray-400 uppercase tracking-wide">${esc(p.group)}</td></tr>` : '';
+    group = p.group;
+    return head + `
+      <tr class="border-b border-gray-100 hover:bg-gray-50">
+        <td class="py-2.5 px-2"><span class="font-medium text-gray-800">${esc(p.label)}</span>
+          <span class="block text-xs text-gray-500">${esc(p.help)}</span></td>
+        <td class="py-2.5 px-2 text-center text-green-600" title="Admins can always do this">✓</td>
+        ${roles.map(r => `<td class="py-2.5 px-2 text-center">
+          <input type="checkbox" data-perm="${p.key}" data-role="${r}" class="w-5 h-5 accent-blue-600 cursor-pointer" ${has(r, p.key) ? 'checked' : ''}></td>`).join('')}
+      </tr>`;
+  }).join('');
+  document.getElementById('perm-discount').value = useDefaults ? 10 : PERMS.max_discount_pct;
+}
+
+function resetPerms() {
+  renderPerms(true);
+  toast('Defaults filled in — press Save to apply', { type: 'info' });
+}
+
+async function savePerms() {
+  const grants = {};
+  PERMS.roles.forEach(r => grants[r.key] = []);
+  document.querySelectorAll('#perm-body input[data-perm]:checked').forEach(cb => grants[cb.dataset.role].push(cb.dataset.perm));
+  if (!grants.cashier.includes('billing.pay') && !grants.waiter.includes('billing.pay')
+      && !(await POS.confirm('Only the admin will be able to take payment. Continue?'))) return;
+  try {
+    PERMS = await api('/api/permissions', { method: 'PUT', body: {
+      grants, max_discount_pct: Number(document.getElementById('perm-discount').value) || 0 } });
+    renderPerms();
+    toast('Permissions saved');
+  } catch (e) { fail(e); }
 }
 
 async function loadSettings() {

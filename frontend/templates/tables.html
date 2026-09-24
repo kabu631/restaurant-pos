@@ -53,8 +53,9 @@ let floor = localStorage.getItem('pos.floor') || 'all';
 let editMode = false;
 
 async function init() {
-  if (!POS.guard(['admin', 'cashier', 'waiter', 'superadmin'])) return;
+  if (!POS.guardPerm('orders.take', 'bookings.manage', 'billing.pay')) return;
   POS.nav('/tables');
+  if (!POS.can('orders.take')) document.querySelectorAll('a[href^="/orders?type"]').forEach(a => a.remove());
   if (IS_ADMIN) document.getElementById('btn-edit').classList.remove('hidden');
   showFlash();
   await load();
