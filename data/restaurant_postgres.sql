@@ -1,8 +1,14 @@
+-- Restaurant POS — reference schema + demo data (PostgreSQL)
+-- Regenerate with: python scripts/add_sample_restaurant.py (after a fresh install)
+-- Contains ONLY the documented demo/sample accounts from README.md — no real
+-- restaurant data. Default passwords/PINs here are the public demo ones and
+-- must be changed before any real use.
+
 --
 -- PostgreSQL database dump
 --
 
-\restrict jmXTkLZAg5sATjpCTRX70ydUi4FbMuzYMSaocGRZuQqctiDrBkQ7dKRcL9Igjd0
+\restrict 7DVqgNz59iVnfUA9wSuHAZgbMYCCYrQWvhfQarLGDwPZ9OArFbxRzlb2gShVjGw
 
 -- Dumped from database version 18.4
 -- Dumped by pg_dump version 18.4
@@ -24,22 +30,20 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: app_settings; Type: TABLE; Schema: public; Owner: postgres
+-- Name: app_settings; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.app_settings (
     id integer NOT NULL,
     restaurant_id integer NOT NULL,
     key character varying NOT NULL,
-    value character varying,
-    description character varying
+    value text,
+    description text
 );
 
 
-ALTER TABLE public.app_settings OWNER TO postgres;
-
 --
--- Name: app_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: app_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.app_settings_id_seq
@@ -51,17 +55,15 @@ CREATE SEQUENCE public.app_settings_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.app_settings_id_seq OWNER TO postgres;
-
 --
--- Name: app_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: app_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.app_settings_id_seq OWNED BY public.app_settings.id;
 
 
 --
--- Name: audit_trail; Type: TABLE; Schema: public; Owner: postgres
+-- Name: audit_trail; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.audit_trail (
@@ -71,18 +73,16 @@ CREATE TABLE public.audit_trail (
     action character varying NOT NULL,
     table_name character varying NOT NULL,
     record_id integer,
-    old_value character varying,
-    new_value character varying,
+    old_value text,
+    new_value text,
     ip_address character varying,
-    reason character varying,
+    reason text,
     created_at timestamp without time zone DEFAULT now()
 );
 
 
-ALTER TABLE public.audit_trail OWNER TO postgres;
-
 --
--- Name: audit_trail_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: audit_trail_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.audit_trail_id_seq
@@ -94,17 +94,52 @@ CREATE SEQUENCE public.audit_trail_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.audit_trail_id_seq OWNER TO postgres;
-
 --
--- Name: audit_trail_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: audit_trail_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.audit_trail_id_seq OWNED BY public.audit_trail.id;
 
 
 --
--- Name: bills; Type: TABLE; Schema: public; Owner: postgres
+-- Name: bill_payments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bill_payments (
+    id integer NOT NULL,
+    restaurant_id integer NOT NULL,
+    bill_id integer NOT NULL,
+    method character varying NOT NULL,
+    amount double precision NOT NULL,
+    tendered double precision,
+    reference character varying,
+    received_by integer,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: bill_payments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.bill_payments_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: bill_payments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.bill_payments_id_seq OWNED BY public.bill_payments.id;
+
+
+--
+-- Name: bills; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.bills (
@@ -136,10 +171,8 @@ CREATE TABLE public.bills (
 );
 
 
-ALTER TABLE public.bills OWNER TO postgres;
-
 --
--- Name: bills_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: bills_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.bills_id_seq
@@ -151,17 +184,15 @@ CREATE SEQUENCE public.bills_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.bills_id_seq OWNER TO postgres;
-
 --
--- Name: bills_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: bills_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.bills_id_seq OWNED BY public.bills.id;
 
 
 --
--- Name: categories; Type: TABLE; Schema: public; Owner: postgres
+-- Name: categories; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.categories (
@@ -170,14 +201,13 @@ CREATE TABLE public.categories (
     name character varying NOT NULL,
     display_order integer,
     is_active boolean,
+    station character varying,
     created_at timestamp without time zone DEFAULT now()
 );
 
 
-ALTER TABLE public.categories OWNER TO postgres;
-
 --
--- Name: categories_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.categories_id_seq
@@ -189,17 +219,15 @@ CREATE SEQUENCE public.categories_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.categories_id_seq OWNER TO postgres;
-
 --
--- Name: categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.categories_id_seq OWNED BY public.categories.id;
 
 
 --
--- Name: customers; Type: TABLE; Schema: public; Owner: postgres
+-- Name: customers; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.customers (
@@ -216,10 +244,8 @@ CREATE TABLE public.customers (
 );
 
 
-ALTER TABLE public.customers OWNER TO postgres;
-
 --
--- Name: customers_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: customers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.customers_id_seq
@@ -231,17 +257,15 @@ CREATE SEQUENCE public.customers_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.customers_id_seq OWNER TO postgres;
-
 --
--- Name: customers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: customers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.customers_id_seq OWNED BY public.customers.id;
 
 
 --
--- Name: ingredients; Type: TABLE; Schema: public; Owner: postgres
+-- Name: ingredients; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.ingredients (
@@ -259,10 +283,8 @@ CREATE TABLE public.ingredients (
 );
 
 
-ALTER TABLE public.ingredients OWNER TO postgres;
-
 --
--- Name: ingredients_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: ingredients_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.ingredients_id_seq
@@ -274,17 +296,15 @@ CREATE SEQUENCE public.ingredients_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.ingredients_id_seq OWNER TO postgres;
-
 --
--- Name: ingredients_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: ingredients_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.ingredients_id_seq OWNED BY public.ingredients.id;
 
 
 --
--- Name: menu_items; Type: TABLE; Schema: public; Owner: postgres
+-- Name: menu_items; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.menu_items (
@@ -295,7 +315,7 @@ CREATE TABLE public.menu_items (
     name_np character varying,
     price double precision NOT NULL,
     variant_type character varying,
-    description character varying,
+    description text,
     is_vat_applicable boolean,
     is_available boolean,
     image_path character varying,
@@ -305,10 +325,8 @@ CREATE TABLE public.menu_items (
 );
 
 
-ALTER TABLE public.menu_items OWNER TO postgres;
-
 --
--- Name: menu_items_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: menu_items_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.menu_items_id_seq
@@ -320,17 +338,15 @@ CREATE SEQUENCE public.menu_items_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.menu_items_id_seq OWNER TO postgres;
-
 --
--- Name: menu_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: menu_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.menu_items_id_seq OWNED BY public.menu_items.id;
 
 
 --
--- Name: order_items; Type: TABLE; Schema: public; Owner: postgres
+-- Name: order_items; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.order_items (
@@ -347,10 +363,8 @@ CREATE TABLE public.order_items (
 );
 
 
-ALTER TABLE public.order_items OWNER TO postgres;
-
 --
--- Name: order_items_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: order_items_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.order_items_id_seq
@@ -362,17 +376,15 @@ CREATE SEQUENCE public.order_items_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.order_items_id_seq OWNER TO postgres;
-
 --
--- Name: order_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: order_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.order_items_id_seq OWNED BY public.order_items.id;
 
 
 --
--- Name: orders; Type: TABLE; Schema: public; Owner: postgres
+-- Name: orders; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.orders (
@@ -384,16 +396,16 @@ CREATE TABLE public.orders (
     waiter_id integer,
     customer_name character varying,
     customer_phone character varying,
-    notes character varying,
+    delivery_address text,
+    guests integer,
+    notes text,
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now()
 );
 
 
-ALTER TABLE public.orders OWNER TO postgres;
-
 --
--- Name: orders_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: orders_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.orders_id_seq
@@ -405,17 +417,15 @@ CREATE SEQUENCE public.orders_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.orders_id_seq OWNER TO postgres;
-
 --
--- Name: orders_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: orders_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.orders_id_seq OWNED BY public.orders.id;
 
 
 --
--- Name: recipe_ingredients; Type: TABLE; Schema: public; Owner: postgres
+-- Name: recipe_ingredients; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.recipe_ingredients (
@@ -427,10 +437,8 @@ CREATE TABLE public.recipe_ingredients (
 );
 
 
-ALTER TABLE public.recipe_ingredients OWNER TO postgres;
-
 --
--- Name: recipe_ingredients_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: recipe_ingredients_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.recipe_ingredients_id_seq
@@ -442,17 +450,57 @@ CREATE SEQUENCE public.recipe_ingredients_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.recipe_ingredients_id_seq OWNER TO postgres;
-
 --
--- Name: recipe_ingredients_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: recipe_ingredients_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.recipe_ingredients_id_seq OWNED BY public.recipe_ingredients.id;
 
 
 --
--- Name: restaurant_tables; Type: TABLE; Schema: public; Owner: postgres
+-- Name: reservations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reservations (
+    id integer NOT NULL,
+    restaurant_id integer NOT NULL,
+    table_id integer,
+    customer_name character varying NOT NULL,
+    customer_phone character varying,
+    party_size integer NOT NULL,
+    reserved_for timestamp without time zone NOT NULL,
+    duration_min integer,
+    status character varying,
+    notes text,
+    order_id integer,
+    created_by integer,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: reservations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.reservations_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: reservations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.reservations_id_seq OWNED BY public.reservations.id;
+
+
+--
+-- Name: restaurant_tables; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.restaurant_tables (
@@ -468,10 +516,8 @@ CREATE TABLE public.restaurant_tables (
 );
 
 
-ALTER TABLE public.restaurant_tables OWNER TO postgres;
-
 --
--- Name: restaurant_tables_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: restaurant_tables_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.restaurant_tables_id_seq
@@ -483,17 +529,15 @@ CREATE SEQUENCE public.restaurant_tables_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.restaurant_tables_id_seq OWNER TO postgres;
-
 --
--- Name: restaurant_tables_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: restaurant_tables_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.restaurant_tables_id_seq OWNED BY public.restaurant_tables.id;
 
 
 --
--- Name: restaurants; Type: TABLE; Schema: public; Owner: postgres
+-- Name: restaurants; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.restaurants (
@@ -508,10 +552,8 @@ CREATE TABLE public.restaurants (
 );
 
 
-ALTER TABLE public.restaurants OWNER TO postgres;
-
 --
--- Name: restaurants_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: restaurants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.restaurants_id_seq
@@ -523,17 +565,15 @@ CREATE SEQUENCE public.restaurants_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.restaurants_id_seq OWNER TO postgres;
-
 --
--- Name: restaurants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: restaurants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.restaurants_id_seq OWNED BY public.restaurants.id;
 
 
 --
--- Name: stock_purchases; Type: TABLE; Schema: public; Owner: postgres
+-- Name: stock_purchases; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.stock_purchases (
@@ -548,10 +588,8 @@ CREATE TABLE public.stock_purchases (
 );
 
 
-ALTER TABLE public.stock_purchases OWNER TO postgres;
-
 --
--- Name: stock_purchases_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: stock_purchases_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.stock_purchases_id_seq
@@ -563,17 +601,15 @@ CREATE SEQUENCE public.stock_purchases_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.stock_purchases_id_seq OWNER TO postgres;
-
 --
--- Name: stock_purchases_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: stock_purchases_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.stock_purchases_id_seq OWNED BY public.stock_purchases.id;
 
 
 --
--- Name: sync_log; Type: TABLE; Schema: public; Owner: postgres
+-- Name: sync_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.sync_log (
@@ -581,7 +617,7 @@ CREATE TABLE public.sync_log (
     table_name character varying NOT NULL,
     record_id integer NOT NULL,
     action character varying NOT NULL,
-    data_snapshot character varying,
+    data_snapshot text,
     is_synced boolean,
     synced_at timestamp without time zone,
     retry_count integer,
@@ -589,10 +625,8 @@ CREATE TABLE public.sync_log (
 );
 
 
-ALTER TABLE public.sync_log OWNER TO postgres;
-
 --
--- Name: sync_log_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: sync_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.sync_log_id_seq
@@ -604,17 +638,15 @@ CREATE SEQUENCE public.sync_log_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.sync_log_id_seq OWNER TO postgres;
-
 --
--- Name: sync_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: sync_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.sync_log_id_seq OWNED BY public.sync_log.id;
 
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: postgres
+-- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.users (
@@ -632,10 +664,8 @@ CREATE TABLE public.users (
 );
 
 
-ALTER TABLE public.users OWNER TO postgres;
-
 --
--- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.users_id_seq
@@ -647,122 +677,134 @@ CREATE SEQUENCE public.users_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.users_id_seq OWNER TO postgres;
-
 --
--- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
--- Name: app_settings id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: app_settings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.app_settings ALTER COLUMN id SET DEFAULT nextval('public.app_settings_id_seq'::regclass);
 
 
 --
--- Name: audit_trail id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: audit_trail id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.audit_trail ALTER COLUMN id SET DEFAULT nextval('public.audit_trail_id_seq'::regclass);
 
 
 --
--- Name: bills id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: bill_payments id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bill_payments ALTER COLUMN id SET DEFAULT nextval('public.bill_payments_id_seq'::regclass);
+
+
+--
+-- Name: bills id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bills ALTER COLUMN id SET DEFAULT nextval('public.bills_id_seq'::regclass);
 
 
 --
--- Name: categories id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: categories id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.categories ALTER COLUMN id SET DEFAULT nextval('public.categories_id_seq'::regclass);
 
 
 --
--- Name: customers id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: customers id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.customers ALTER COLUMN id SET DEFAULT nextval('public.customers_id_seq'::regclass);
 
 
 --
--- Name: ingredients id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: ingredients id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ingredients ALTER COLUMN id SET DEFAULT nextval('public.ingredients_id_seq'::regclass);
 
 
 --
--- Name: menu_items id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: menu_items id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.menu_items ALTER COLUMN id SET DEFAULT nextval('public.menu_items_id_seq'::regclass);
 
 
 --
--- Name: order_items id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: order_items id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.order_items ALTER COLUMN id SET DEFAULT nextval('public.order_items_id_seq'::regclass);
 
 
 --
--- Name: orders id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: orders id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.orders ALTER COLUMN id SET DEFAULT nextval('public.orders_id_seq'::regclass);
 
 
 --
--- Name: recipe_ingredients id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: recipe_ingredients id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.recipe_ingredients ALTER COLUMN id SET DEFAULT nextval('public.recipe_ingredients_id_seq'::regclass);
 
 
 --
--- Name: restaurant_tables id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: reservations id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations ALTER COLUMN id SET DEFAULT nextval('public.reservations_id_seq'::regclass);
+
+
+--
+-- Name: restaurant_tables id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.restaurant_tables ALTER COLUMN id SET DEFAULT nextval('public.restaurant_tables_id_seq'::regclass);
 
 
 --
--- Name: restaurants id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: restaurants id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.restaurants ALTER COLUMN id SET DEFAULT nextval('public.restaurants_id_seq'::regclass);
 
 
 --
--- Name: stock_purchases id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: stock_purchases id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.stock_purchases ALTER COLUMN id SET DEFAULT nextval('public.stock_purchases_id_seq'::regclass);
 
 
 --
--- Name: sync_log id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: sync_log id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.sync_log ALTER COLUMN id SET DEFAULT nextval('public.sync_log_id_seq'::regclass);
 
 
 --
--- Name: users id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
 
 
 --
--- Data for Name: app_settings; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: app_settings; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.app_settings (id, restaurant_id, key, value, description) FROM stdin;
@@ -770,7 +812,7 @@ COPY public.app_settings (id, restaurant_id, key, value, description) FROM stdin
 
 
 --
--- Data for Name: audit_trail; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: audit_trail; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.audit_trail (id, restaurant_id, user_id, action, table_name, record_id, old_value, new_value, ip_address, reason, created_at) FROM stdin;
@@ -778,7 +820,15 @@ COPY public.audit_trail (id, restaurant_id, user_id, action, table_name, record_
 
 
 --
--- Data for Name: bills; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: bill_payments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.bill_payments (id, restaurant_id, bill_id, method, amount, tendered, reference, received_by, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: bills; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.bills (id, restaurant_id, order_id, bill_number, subtotal, discount_type, discount_value, discount_amount, taxable_amount, vat_amount, service_charge, grand_total, payment_method, payment_status, cashier_id, customer_pan, customer_name, is_printed, print_count, synced_to_cbms, cbms_sync_at, fiscal_year, fonepay_prn, created_at, updated_at) FROM stdin;
@@ -786,31 +836,29 @@ COPY public.bills (id, restaurant_id, order_id, bill_number, subtotal, discount_
 
 
 --
--- Data for Name: categories; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: categories; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.categories (id, restaurant_id, name, display_order, is_active, created_at) FROM stdin;
-1	1	Starters	1	t	2026-05-19 16:57:18
-2	1	Test Cat Updated	99	t	2026-05-19 17:03:57
-3	1	Test Cat Updated	99	t	2026-05-19 17:07:48
-4	1	Test Cat Updated	99	t	2026-05-19 17:10:18
-5	1	Test Cat Updated	99	t	2026-05-19 17:11:05
-6	1	Test Cat Updated	99	t	2026-05-19 17:11:42
-7	1	Test Cat Updated	99	t	2026-05-19 17:14:08
-8	1	Test Cat Updated	99	t	2026-05-19 17:17:33
-9	1	Test Cat Updated	99	t	2026-05-19 17:18:09
-10	1	Test Cat Updated	99	t	2026-05-19 17:21:24
-11	1	Test Cat Updated	99	t	2026-05-19 17:22:05
-12	1	Test Cat Updated	99	t	2026-05-19 17:30:59
-13	1	Test Cat Updated	99	t	2026-05-19 17:31:23
-14	1	Test Cat Updated	99	t	2026-05-19 17:32:01
-15	2	Snack	1	t	2026-05-19 18:25:55
-16	1	Cutting Tea	0	t	2026-06-29 08:38:07
+COPY public.categories (id, restaurant_id, name, display_order, is_active, station, created_at) FROM stdin;
+1	1	Momo & Dumplings	1	t	kitchen	2026-09-24 18:47:23.252253
+2	1	Dal Bhat Set	2	t	kitchen	2026-09-24 18:47:23.260504
+3	1	Noodles & Rice	3	t	kitchen	2026-09-24 18:47:23.26457
+4	1	Grill & Starters	4	t	kitchen	2026-09-24 18:47:23.266074
+5	1	Hot Drinks	5	t	bar	2026-09-24 18:47:23.26796
+6	1	Cold Drinks	6	t	none	2026-09-24 18:47:23.269847
+7	1	Desserts	7	t	kitchen	2026-09-24 18:47:23.27148
+8	2	Momo & Dumplings	1	t	kitchen	2026-09-24 18:47:25.055983
+9	2	Dal Bhat Set	2	t	kitchen	2026-09-24 18:47:25.065463
+10	2	Noodles & Rice	3	t	kitchen	2026-09-24 18:47:25.070245
+11	2	Grill & Starters	4	t	kitchen	2026-09-24 18:47:25.072769
+12	2	Hot Drinks	5	t	bar	2026-09-24 18:47:25.074718
+13	2	Cold Drinks	6	t	none	2026-09-24 18:47:25.076022
+14	2	Desserts	7	t	kitchen	2026-09-24 18:47:25.077192
 \.
 
 
 --
--- Data for Name: customers; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: customers; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.customers (id, restaurant_id, name, phone, email, total_visits, total_spent, loyalty_points, created_at, updated_at) FROM stdin;
@@ -818,7 +866,7 @@ COPY public.customers (id, restaurant_id, name, phone, email, total_visits, tota
 
 
 --
--- Data for Name: ingredients; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: ingredients; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.ingredients (id, restaurant_id, name, unit, current_stock, minimum_stock, cost_per_unit, supplier_name, last_purchased_at, created_at, updated_at) FROM stdin;
@@ -826,58 +874,83 @@ COPY public.ingredients (id, restaurant_id, name, unit, current_stock, minimum_s
 
 
 --
--- Data for Name: menu_items; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: menu_items; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.menu_items (id, restaurant_id, category_id, name, name_np, price, variant_type, description, is_vat_applicable, is_available, image_path, display_order, created_at, updated_at) FROM stdin;
-1	1	1	Chicken Momo	\N	250	\N	\N	t	f	\N	0	2026-05-19 16:57:18	2026-05-19 16:57:18
-2	1	2	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:03:57	2026-05-19 17:03:57
-3	1	3	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:07:48	2026-05-19 17:07:48
-4	1	4	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:10:18	2026-05-19 17:10:18
-5	1	5	Test Momo	\N	280	\N	\N	t	t	\N	0	2026-05-19 17:11:05	2026-05-19 17:36:25
-6	1	6	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:11:42	2026-05-19 17:11:42
-7	1	6	Order Test Item	\N	150	\N	\N	f	t	\N	0	2026-05-19 17:11:42	2026-05-19 17:11:42
-8	1	7	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:14:08	2026-05-19 17:14:08
-9	1	7	Order Test Item	\N	150	\N	\N	f	t	\N	0	2026-05-19 17:14:08	2026-05-19 17:14:08
-10	1	8	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:17:33	2026-05-19 17:17:33
-11	1	8	Order Test Item	\N	150	\N	\N	f	t	\N	0	2026-05-19 17:17:33	2026-05-19 17:17:33
-12	1	9	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:18:09	2026-05-19 17:18:09
-13	1	9	Order Test Item	\N	150	\N	\N	f	t	\N	0	2026-05-19 17:18:10	2026-05-19 17:18:10
-14	1	10	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:21:24	2026-05-19 17:21:24
-15	1	10	Order Test Item	\N	150	\N	\N	f	f	\N	0	2026-05-19 17:21:24	2026-05-20 03:55:52
-16	1	11	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:22:05	2026-05-19 17:22:05
-17	1	11	Order Test Item	\N	150	\N	\N	f	t	\N	0	2026-05-19 17:22:05	2026-05-19 17:22:05
-18	1	12	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:30:59	2026-05-19 17:30:59
-19	1	12	Order Test Item	\N	150	\N	\N	f	t	\N	0	2026-05-19 17:30:59	2026-05-19 17:30:59
-20	1	13	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:31:23	2026-05-19 17:31:23
-21	1	13	Order Test Item	\N	150	\N	\N	f	t	\N	0	2026-05-19 17:31:23	2026-05-19 17:31:23
-22	1	14	Test Momo	\N	280	\N	\N	t	f	\N	0	2026-05-19 17:32:01	2026-05-19 17:32:01
-23	1	14	Order Test Item	\N	150	\N	\N	f	f	\N	0	2026-05-19 17:32:01	2026-05-20 03:55:57
-24	2	15	momo	momo	150	veg	\N	t	t	\N	1	2026-05-19 18:26:14	2026-05-19 18:26:14
+1	1	1	Chicken Momo	चिकेन मम	250	\N	\N	t	t	\N	1	2026-09-24 18:47:23.262742	2026-09-24 18:47:23.262747
+2	1	1	Veg Momo	भेज मम	180	\N	\N	t	t	\N	2	2026-09-24 18:47:23.262749	2026-09-24 18:47:23.26275
+3	1	1	Buff Momo	बफ मम	220	\N	\N	t	t	\N	3	2026-09-24 18:47:23.262751	2026-09-24 18:47:23.262752
+4	1	1	Jhol Momo	झोल मम	280	\N	\N	t	t	\N	4	2026-09-24 18:47:23.262753	2026-09-24 18:47:23.262754
+5	1	1	C-Momo	सी-मम	300	\N	\N	t	t	\N	5	2026-09-24 18:47:23.262755	2026-09-24 18:47:23.262756
+6	1	2	Dal Bhat Set Veg	दाल भात (भेज)	350	\N	\N	t	t	\N	1	2026-09-24 18:47:23.265198	2026-09-24 18:47:23.2652
+7	1	2	Dal Bhat Set Chicken	दाल भात (चिकेन)	450	\N	\N	t	t	\N	2	2026-09-24 18:47:23.265201	2026-09-24 18:47:23.265202
+8	1	2	Dal Bhat Set Mutton	दाल भात (खसी)	550	\N	\N	t	t	\N	3	2026-09-24 18:47:23.265202	2026-09-24 18:47:23.265203
+9	1	3	Chicken Chowmein	चिकेन चाउमिन	200	\N	\N	t	t	\N	1	2026-09-24 18:47:23.26659	2026-09-24 18:47:23.266592
+10	1	3	Veg Chowmein	भेज चाउमिन	160	\N	\N	t	t	\N	2	2026-09-24 18:47:23.266592	2026-09-24 18:47:23.266593
+11	1	3	Fried Rice Chicken	चिकेन फ्राइड राइस	280	\N	\N	t	t	\N	3	2026-09-24 18:47:23.266593	2026-09-24 18:47:23.266594
+12	1	3	Fried Rice Veg	भेज फ्राइड राइस	220	\N	\N	t	t	\N	4	2026-09-24 18:47:23.266594	2026-09-24 18:47:23.266595
+13	1	3	Thukpa	थुक्पा	240	\N	\N	t	t	\N	5	2026-09-24 18:47:23.266595	2026-09-24 18:47:23.266596
+14	1	4	Chicken Sekuwa	चिकेन सेकुवा	400	\N	\N	t	t	\N	1	2026-09-24 18:47:23.268574	2026-09-24 18:47:23.268578
+15	1	4	Paneer Tikka	पनिर टिक्का	350	\N	\N	t	t	\N	2	2026-09-24 18:47:23.26858	2026-09-24 18:47:23.268581
+16	1	4	Chicken Choila	चिकेन छोयला	380	\N	\N	t	t	\N	3	2026-09-24 18:47:23.268582	2026-09-24 18:47:23.268583
+17	1	4	French Fries	फ्रेन्च फ्राइज	180	\N	\N	t	t	\N	4	2026-09-24 18:47:23.268584	2026-09-24 18:47:23.268585
+18	1	5	Milk Tea	दुध चिया	40	\N	\N	t	t	\N	1	2026-09-24 18:47:23.270383	2026-09-24 18:47:23.270387
+19	1	5	Lemon Tea	लेमन टी	60	\N	\N	t	t	\N	2	2026-09-24 18:47:23.270388	2026-09-24 18:47:23.270389
+20	1	5	Black Coffee	कालो कफी	120	\N	\N	t	t	\N	3	2026-09-24 18:47:23.27039	2026-09-24 18:47:23.270391
+21	1	5	Cappuccino	क्यापुचिनो	180	\N	\N	t	t	\N	4	2026-09-24 18:47:23.270391	2026-09-24 18:47:23.270392
+22	1	6	Coke	कोक	80	\N	\N	t	t	\N	1	2026-09-24 18:47:23.271924	2026-09-24 18:47:23.271926
+23	1	6	Fanta	फान्टा	80	\N	\N	t	t	\N	2	2026-09-24 18:47:23.271928	2026-09-24 18:47:23.271928
+24	1	6	Mineral Water	पानी	40	\N	\N	t	t	\N	3	2026-09-24 18:47:23.271929	2026-09-24 18:47:23.27193
+25	1	7	Kheer	खिर	120	\N	\N	t	t	\N	1	2026-09-24 18:47:23.273003	2026-09-24 18:47:23.273005
+26	1	7	Gulab Jamun	गुलाब जामुन	150	\N	\N	t	t	\N	2	2026-09-24 18:47:23.273007	2026-09-24 18:47:23.273008
+27	2	8	Chicken Momo	चिकेन मम	250	\N	\N	t	t	\N	1	2026-09-24 18:47:25.068006	2026-09-24 18:47:25.068011
+28	2	8	Veg Momo	भेज मम	180	\N	\N	t	t	\N	2	2026-09-24 18:47:25.068013	2026-09-24 18:47:25.068014
+29	2	8	Buff Momo	बफ मम	220	\N	\N	t	t	\N	3	2026-09-24 18:47:25.068015	2026-09-24 18:47:25.068016
+30	2	8	Jhol Momo	झोल मम	280	\N	\N	t	t	\N	4	2026-09-24 18:47:25.068017	2026-09-24 18:47:25.068018
+31	2	8	C-Momo	सी-मम	300	\N	\N	t	t	\N	5	2026-09-24 18:47:25.068019	2026-09-24 18:47:25.068019
+32	2	9	Dal Bhat Set Veg	दाल भात (भेज)	350	\N	\N	t	t	\N	1	2026-09-24 18:47:25.071107	2026-09-24 18:47:25.071111
+33	2	9	Dal Bhat Set Chicken	दाल भात (चिकेन)	450	\N	\N	t	t	\N	2	2026-09-24 18:47:25.071113	2026-09-24 18:47:25.071114
+34	2	9	Dal Bhat Set Mutton	दाल भात (खसी)	550	\N	\N	t	t	\N	3	2026-09-24 18:47:25.071115	2026-09-24 18:47:25.071116
+35	2	10	Chicken Chowmein	चिकेन चाउमिन	200	\N	\N	t	t	\N	1	2026-09-24 18:47:25.073595	2026-09-24 18:47:25.073599
+36	2	10	Veg Chowmein	भेज चाउमिन	160	\N	\N	t	t	\N	2	2026-09-24 18:47:25.073601	2026-09-24 18:47:25.073602
+37	2	10	Fried Rice Chicken	चिकेन फ्राइड राइस	280	\N	\N	t	t	\N	3	2026-09-24 18:47:25.073603	2026-09-24 18:47:25.073604
+38	2	10	Fried Rice Veg	भेज फ्राइड राइस	220	\N	\N	t	t	\N	4	2026-09-24 18:47:25.073605	2026-09-24 18:47:25.073606
+39	2	10	Thukpa	थुक्पा	240	\N	\N	t	t	\N	5	2026-09-24 18:47:25.073607	2026-09-24 18:47:25.073607
+40	2	11	Chicken Sekuwa	चिकेन सेकुवा	400	\N	\N	t	t	\N	1	2026-09-24 18:47:25.075214	2026-09-24 18:47:25.075216
+41	2	11	Paneer Tikka	पनिर टिक्का	350	\N	\N	t	t	\N	2	2026-09-24 18:47:25.075217	2026-09-24 18:47:25.075217
+42	2	11	Chicken Choila	चिकेन छोयला	380	\N	\N	t	t	\N	3	2026-09-24 18:47:25.075218	2026-09-24 18:47:25.075218
+43	2	11	French Fries	फ्रेन्च फ्राइज	180	\N	\N	t	t	\N	4	2026-09-24 18:47:25.075219	2026-09-24 18:47:25.075219
+44	2	12	Milk Tea	दुध चिया	40	\N	\N	t	t	\N	1	2026-09-24 18:47:25.076405	2026-09-24 18:47:25.076407
+45	2	12	Lemon Tea	लेमन टी	60	\N	\N	t	t	\N	2	2026-09-24 18:47:25.076408	2026-09-24 18:47:25.076408
+46	2	12	Black Coffee	कालो कफी	120	\N	\N	t	t	\N	3	2026-09-24 18:47:25.076409	2026-09-24 18:47:25.076409
+47	2	12	Cappuccino	क्यापुचिनो	180	\N	\N	t	t	\N	4	2026-09-24 18:47:25.07641	2026-09-24 18:47:25.07641
+48	2	13	Coke	कोक	80	\N	\N	t	t	\N	1	2026-09-24 18:47:25.077532	2026-09-24 18:47:25.077534
+49	2	13	Fanta	फान्टा	80	\N	\N	t	t	\N	2	2026-09-24 18:47:25.077535	2026-09-24 18:47:25.077535
+50	2	13	Mineral Water	पानी	40	\N	\N	t	t	\N	3	2026-09-24 18:47:25.077536	2026-09-24 18:47:25.077536
+51	2	14	Kheer	खिर	120	\N	\N	t	t	\N	1	2026-09-24 18:47:25.078568	2026-09-24 18:47:25.07857
+52	2	14	Gulab Jamun	गुलाब जामुन	150	\N	\N	t	t	\N	2	2026-09-24 18:47:25.07857	2026-09-24 18:47:25.078571
 \.
 
 
 --
--- Data for Name: order_items; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: order_items; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.order_items (id, order_id, menu_item_id, quantity, unit_price, notes, kot_status, kot_number, kot_sent_at, created_at) FROM stdin;
-1	1	5	4	280	\N	sent	1	2026-06-29 15:26:59.171147	2026-06-29 15:26:22.401418
 \.
 
 
 --
--- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.orders (id, restaurant_id, table_id, order_type, status, waiter_id, customer_name, customer_phone, notes, created_at, updated_at) FROM stdin;
-1	1	1	dine_in	cancelled	1	\N	\N	\N	2026-06-29 15:26:22.37973	2026-06-29 15:28:10.529868
-2	1	2	dine_in	active	1	\N	\N	\N	2026-06-29 15:29:06.780127	2026-06-29 15:29:06.780127
+COPY public.orders (id, restaurant_id, table_id, order_type, status, waiter_id, customer_name, customer_phone, delivery_address, guests, notes, created_at, updated_at) FROM stdin;
 \.
 
 
 --
--- Data for Name: recipe_ingredients; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: recipe_ingredients; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.recipe_ingredients (id, menu_item_id, ingredient_id, quantity_used, unit) FROM stdin;
@@ -885,27 +958,61 @@ COPY public.recipe_ingredients (id, menu_item_id, ingredient_id, quantity_used, 
 
 
 --
--- Data for Name: restaurant_tables; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: reservations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.reservations (id, restaurant_id, table_id, customer_name, customer_phone, party_size, reserved_for, duration_min, status, notes, order_id, created_by, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: restaurant_tables; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.restaurant_tables (id, restaurant_id, table_number, capacity, status, floor, pos_x, pos_y, created_at) FROM stdin;
-1	1	T1	4	free	Ground	0	0	2026-05-19 17:32:01
-2	1	T2	4	occupied	Ground	0	0	2026-06-29 15:28:52.230909
+1	1	T1	2	free	Ground	0	0	2026-09-24 18:47:23.255068
+2	1	T2	2	free	Ground	0	0	2026-09-24 18:47:23.255071
+3	1	T3	4	free	Ground	0	0	2026-09-24 18:47:23.255072
+4	1	T4	4	free	Ground	0	0	2026-09-24 18:47:23.255073
+5	1	T5	4	free	Ground	0	0	2026-09-24 18:47:23.255073
+6	1	T6	4	free	Ground	0	0	2026-09-24 18:47:23.255074
+7	1	T7	4	free	Ground	0	0	2026-09-24 18:47:23.255074
+8	1	T8	4	free	Ground	0	0	2026-09-24 18:47:23.255075
+9	1	T9	6	free	First	0	0	2026-09-24 18:47:23.255076
+10	1	T10	6	free	First	0	0	2026-09-24 18:47:23.255076
+11	1	T11	6	free	First	0	0	2026-09-24 18:47:23.255077
+12	1	T12	6	free	First	0	0	2026-09-24 18:47:23.255077
+13	1	VIP-1	8	free	Rooftop	0	0	2026-09-24 18:47:23.255078
+14	1	VIP-2	8	free	Rooftop	0	0	2026-09-24 18:47:23.255078
+15	2	T1	2	free	Ground	0	0	2026-09-24 18:47:25.059198
+16	2	T2	2	free	Ground	0	0	2026-09-24 18:47:25.059204
+17	2	T3	4	free	Ground	0	0	2026-09-24 18:47:25.059207
+18	2	T4	4	free	Ground	0	0	2026-09-24 18:47:25.059209
+19	2	T5	4	free	Ground	0	0	2026-09-24 18:47:25.059211
+20	2	T6	4	free	Ground	0	0	2026-09-24 18:47:25.059212
+21	2	T7	4	free	Ground	0	0	2026-09-24 18:47:25.059214
+22	2	T8	4	free	Ground	0	0	2026-09-24 18:47:25.059215
+23	2	T9	6	free	First	0	0	2026-09-24 18:47:25.059216
+24	2	T10	6	free	First	0	0	2026-09-24 18:47:25.059218
+25	2	T11	6	free	First	0	0	2026-09-24 18:47:25.05922
+26	2	T12	6	free	First	0	0	2026-09-24 18:47:25.059221
+27	2	VIP-1	8	free	Rooftop	0	0	2026-09-24 18:47:25.059223
+28	2	VIP-2	8	free	Rooftop	0	0	2026-09-24 18:47:25.059224
 \.
 
 
 --
--- Data for Name: restaurants; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: restaurants; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.restaurants (id, name, slug, phone, address, vat_number, is_active, created_at) FROM stdin;
-1	Demo Restaurant	demo	\N	\N	\N	t	2026-05-19 18:22:58
-2	Eve Grill and Chill	1011	9865321456	Buddhanagar	2501456	t	2026-05-19 18:24:06
+1	Demo Restaurant	demo	\N	\N	\N	t	2026-09-24 18:47:22.398262
+2	Sample Restaurant	sample	01-4400000	Thamel, Kathmandu	\N	t	2026-09-24 18:47:24.213193
 \.
 
 
 --
--- Data for Name: stock_purchases; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: stock_purchases; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.stock_purchases (id, ingredient_id, quantity, cost_per_unit, total_cost, supplier_name, purchased_by, purchased_at) FROM stdin;
@@ -913,7 +1020,7 @@ COPY public.stock_purchases (id, ingredient_id, quantity, cost_per_unit, total_c
 
 
 --
--- Data for Name: sync_log; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: sync_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.sync_log (id, table_name, record_id, action, data_snapshot, is_synced, synced_at, retry_count, created_at) FROM stdin;
@@ -921,123 +1028,143 @@ COPY public.sync_log (id, table_name, record_id, action, data_snapshot, is_synce
 
 
 --
--- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.users (id, restaurant_id, username, password_hash, full_name, role, is_active, pin, last_login, created_at, updated_at) FROM stdin;
-3	2	jitpur	$2b$12$1vsLMpavnB8xmiQIQGqDLO1.TIvpW8hvQ0ITZRULf36PSo.uXvUqu	Jitpurey Sau	admin	t	\N	\N	2026-05-19 18:24:07	2026-05-19 18:24:07
-1	1	admin	$2b$12$9Wy4k4sVtAFPmfVaHlUqiOVNI9/24y3aMA.0Z0auMC55Hl0rQG1cG	Administrator	admin	t	0000	2026-06-29 15:00:33.993686	2026-05-19 16:54:15	2026-06-29 15:00:33.636252
-2	\N	superadmin	$2b$12$crMsPTYNU0X27D756grMa.SPz8bs6eEPwWwrmqba.YbDgar22aI6m	Platform Administrator	superadmin	t	\N	2026-06-29 15:16:09.730691	2026-05-19 18:22:58	2026-06-29 15:16:09.489145
+1	\N	superadmin	$2b$12$cojxE1KRmLESj4wxHl2fMekCBSvVYoczTrs/Hu7xYMgMPXUWQQxvu	Platform Administrator	superadmin	t	\N	\N	2026-09-24 18:47:22.389866	2026-09-24 18:47:22.389874
+2	1	admin	$2b$12$L4b6r0yO0mHuDLF/LHlQxuN6DbAM2qlwfLJkWlv88GUTyC5WqFy/2	Administrator	admin	t	0000	\N	2026-09-24 18:47:23.258185	2026-09-24 18:47:23.258191
+3	1	cashier1	$2b$12$uuWF9/pOa1BqwfmQxKu6EeugW9kU5QmNOXe9XhBXSwu.XGuPFN.YC	Sita Cashier	cashier	t	1111	\N	2026-09-24 18:47:23.258192	2026-09-24 18:47:23.258193
+4	1	waiter1	$2b$12$tMj/PFbCTMlEu5yuVv4cz.j16Ivp4nqW0h3L4WOCXiDEJe0I4KERS	Ram Waiter	waiter	t	2222	\N	2026-09-24 18:47:23.258194	2026-09-24 18:47:23.258195
+5	1	kitchen1	$2b$12$Yx/kMdXhZQ1/YEB/rhHJRuFof1jNWezKdNVdSkSm6QpP0yHQabLDi	Hari Kitchen	kitchen	t	3333	\N	2026-09-24 18:47:23.258196	2026-09-24 18:47:23.258197
+6	2	admin	$2b$12$Nw06dN3C5DzKdmk/oZUPReSyn9X9u4UCMJE58gAFg5Ei/LGxkpxj6	Sample Admin	admin	t	0000	\N	2026-09-24 18:47:25.063106	2026-09-24 18:47:25.063111
+7	2	cashier1	$2b$12$csJS4O75woq.NfVY0p1rz.o6Nk/8rP.GHedPLL97WtjqUsWng2oie	Sita Cashier	cashier	t	1111	\N	2026-09-24 18:47:25.063112	2026-09-24 18:47:25.063113
+8	2	waiter1	$2b$12$HqxJosLs5bIY..5x2lcD9uqym9ZmwsHofsy4Epf3vMU8.6gdRP3TC	Ram Waiter	waiter	t	2222	\N	2026-09-24 18:47:25.063114	2026-09-24 18:47:25.063115
+9	2	kitchen1	$2b$12$sIUDeJ4QmKqXjk40lfrHiu1efVRZu1cv8GksVtYau5HcEMPkwEkhW	Hari Kitchen	kitchen	t	3333	\N	2026-09-24 18:47:25.063116	2026-09-24 18:47:25.063117
 \.
 
 
 --
--- Name: app_settings_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: app_settings_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.app_settings_id_seq', 1, true);
+SELECT pg_catalog.setval('public.app_settings_id_seq', 1, false);
 
 
 --
--- Name: audit_trail_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: audit_trail_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.audit_trail_id_seq', 1, false);
 
 
 --
--- Name: bills_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: bill_payments_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.bill_payments_id_seq', 1, false);
+
+
+--
+-- Name: bills_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.bills_id_seq', 1, false);
 
 
 --
--- Name: categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.categories_id_seq', 16, true);
-
-
---
--- Name: customers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.customers_id_seq', 1, true);
+SELECT pg_catalog.setval('public.categories_id_seq', 14, true);
 
 
 --
--- Name: ingredients_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: customers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.ingredients_id_seq', 1, true);
-
-
---
--- Name: menu_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.menu_items_id_seq', 24, true);
+SELECT pg_catalog.setval('public.customers_id_seq', 1, false);
 
 
 --
--- Name: order_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: ingredients_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.order_items_id_seq', 1, true);
-
-
---
--- Name: orders_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.orders_id_seq', 2, true);
+SELECT pg_catalog.setval('public.ingredients_id_seq', 1, false);
 
 
 --
--- Name: recipe_ingredients_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: menu_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.recipe_ingredients_id_seq', 1, true);
-
-
---
--- Name: restaurant_tables_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.restaurant_tables_id_seq', 2, true);
+SELECT pg_catalog.setval('public.menu_items_id_seq', 52, true);
 
 
 --
--- Name: restaurants_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: order_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.order_items_id_seq', 1, false);
+
+
+--
+-- Name: orders_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.orders_id_seq', 1, false);
+
+
+--
+-- Name: recipe_ingredients_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.recipe_ingredients_id_seq', 1, false);
+
+
+--
+-- Name: reservations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.reservations_id_seq', 1, false);
+
+
+--
+-- Name: restaurant_tables_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.restaurant_tables_id_seq', 28, true);
+
+
+--
+-- Name: restaurants_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.restaurants_id_seq', 2, true);
 
 
 --
--- Name: stock_purchases_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: stock_purchases_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.stock_purchases_id_seq', 1, true);
-
-
---
--- Name: sync_log_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.sync_log_id_seq', 1, true);
+SELECT pg_catalog.setval('public.stock_purchases_id_seq', 1, false);
 
 
 --
--- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: sync_log_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.users_id_seq', 3, true);
+SELECT pg_catalog.setval('public.sync_log_id_seq', 1, false);
 
 
 --
--- Name: app_settings app_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.users_id_seq', 9, true);
+
+
+--
+-- Name: app_settings app_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.app_settings
@@ -1045,7 +1172,7 @@ ALTER TABLE ONLY public.app_settings
 
 
 --
--- Name: audit_trail audit_trail_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: audit_trail audit_trail_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.audit_trail
@@ -1053,7 +1180,15 @@ ALTER TABLE ONLY public.audit_trail
 
 
 --
--- Name: bills bills_fonepay_prn_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: bill_payments bill_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bill_payments
+    ADD CONSTRAINT bill_payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bills bills_fonepay_prn_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bills
@@ -1061,7 +1196,7 @@ ALTER TABLE ONLY public.bills
 
 
 --
--- Name: bills bills_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: bills bills_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bills
@@ -1069,7 +1204,7 @@ ALTER TABLE ONLY public.bills
 
 
 --
--- Name: categories categories_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: categories categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.categories
@@ -1077,7 +1212,7 @@ ALTER TABLE ONLY public.categories
 
 
 --
--- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.customers
@@ -1085,7 +1220,7 @@ ALTER TABLE ONLY public.customers
 
 
 --
--- Name: ingredients ingredients_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: ingredients ingredients_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ingredients
@@ -1093,7 +1228,7 @@ ALTER TABLE ONLY public.ingredients
 
 
 --
--- Name: menu_items menu_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: menu_items menu_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.menu_items
@@ -1101,7 +1236,7 @@ ALTER TABLE ONLY public.menu_items
 
 
 --
--- Name: order_items order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: order_items order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.order_items
@@ -1109,7 +1244,7 @@ ALTER TABLE ONLY public.order_items
 
 
 --
--- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.orders
@@ -1117,7 +1252,7 @@ ALTER TABLE ONLY public.orders
 
 
 --
--- Name: recipe_ingredients recipe_ingredients_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: recipe_ingredients recipe_ingredients_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.recipe_ingredients
@@ -1125,7 +1260,15 @@ ALTER TABLE ONLY public.recipe_ingredients
 
 
 --
--- Name: restaurant_tables restaurant_tables_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: reservations reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations
+    ADD CONSTRAINT reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: restaurant_tables restaurant_tables_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.restaurant_tables
@@ -1133,7 +1276,7 @@ ALTER TABLE ONLY public.restaurant_tables
 
 
 --
--- Name: restaurants restaurants_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: restaurants restaurants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.restaurants
@@ -1141,7 +1284,7 @@ ALTER TABLE ONLY public.restaurants
 
 
 --
--- Name: restaurants restaurants_slug_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: restaurants restaurants_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.restaurants
@@ -1149,7 +1292,7 @@ ALTER TABLE ONLY public.restaurants
 
 
 --
--- Name: stock_purchases stock_purchases_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_purchases stock_purchases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.stock_purchases
@@ -1157,7 +1300,7 @@ ALTER TABLE ONLY public.stock_purchases
 
 
 --
--- Name: sync_log sync_log_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: sync_log sync_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.sync_log
@@ -1165,7 +1308,7 @@ ALTER TABLE ONLY public.sync_log
 
 
 --
--- Name: bills uq_bill_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: bills uq_bill_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bills
@@ -1173,7 +1316,7 @@ ALTER TABLE ONLY public.bills
 
 
 --
--- Name: customers uq_customer_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers uq_customer_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.customers
@@ -1181,7 +1324,7 @@ ALTER TABLE ONLY public.customers
 
 
 --
--- Name: app_settings uq_setting_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: app_settings uq_setting_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.app_settings
@@ -1189,7 +1332,7 @@ ALTER TABLE ONLY public.app_settings
 
 
 --
--- Name: restaurant_tables uq_table_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: restaurant_tables uq_table_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.restaurant_tables
@@ -1197,7 +1340,7 @@ ALTER TABLE ONLY public.restaurant_tables
 
 
 --
--- Name: users uq_user_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users uq_user_per_restaurant; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users
@@ -1205,7 +1348,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users
@@ -1213,7 +1356,21 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: app_settings app_settings_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: ix_bill_payments_bill_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_bill_payments_bill_id ON public.bill_payments USING btree (bill_id);
+
+
+--
+-- Name: ix_reservations_restaurant_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_reservations_restaurant_id ON public.reservations USING btree (restaurant_id);
+
+
+--
+-- Name: app_settings app_settings_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.app_settings
@@ -1221,7 +1378,7 @@ ALTER TABLE ONLY public.app_settings
 
 
 --
--- Name: audit_trail audit_trail_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: audit_trail audit_trail_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.audit_trail
@@ -1229,7 +1386,7 @@ ALTER TABLE ONLY public.audit_trail
 
 
 --
--- Name: audit_trail audit_trail_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: audit_trail audit_trail_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.audit_trail
@@ -1237,7 +1394,31 @@ ALTER TABLE ONLY public.audit_trail
 
 
 --
--- Name: bills bills_cashier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: bill_payments bill_payments_bill_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bill_payments
+    ADD CONSTRAINT bill_payments_bill_id_fkey FOREIGN KEY (bill_id) REFERENCES public.bills(id);
+
+
+--
+-- Name: bill_payments bill_payments_received_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bill_payments
+    ADD CONSTRAINT bill_payments_received_by_fkey FOREIGN KEY (received_by) REFERENCES public.users(id);
+
+
+--
+-- Name: bill_payments bill_payments_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bill_payments
+    ADD CONSTRAINT bill_payments_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+
+
+--
+-- Name: bills bills_cashier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bills
@@ -1245,7 +1426,7 @@ ALTER TABLE ONLY public.bills
 
 
 --
--- Name: bills bills_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: bills bills_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bills
@@ -1253,7 +1434,7 @@ ALTER TABLE ONLY public.bills
 
 
 --
--- Name: bills bills_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: bills bills_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bills
@@ -1261,7 +1442,7 @@ ALTER TABLE ONLY public.bills
 
 
 --
--- Name: categories categories_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: categories categories_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.categories
@@ -1269,7 +1450,7 @@ ALTER TABLE ONLY public.categories
 
 
 --
--- Name: customers customers_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.customers
@@ -1277,7 +1458,7 @@ ALTER TABLE ONLY public.customers
 
 
 --
--- Name: ingredients ingredients_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: ingredients ingredients_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ingredients
@@ -1285,7 +1466,7 @@ ALTER TABLE ONLY public.ingredients
 
 
 --
--- Name: menu_items menu_items_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: menu_items menu_items_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.menu_items
@@ -1293,7 +1474,7 @@ ALTER TABLE ONLY public.menu_items
 
 
 --
--- Name: menu_items menu_items_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: menu_items menu_items_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.menu_items
@@ -1301,7 +1482,7 @@ ALTER TABLE ONLY public.menu_items
 
 
 --
--- Name: order_items order_items_menu_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: order_items order_items_menu_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.order_items
@@ -1309,7 +1490,7 @@ ALTER TABLE ONLY public.order_items
 
 
 --
--- Name: order_items order_items_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: order_items order_items_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.order_items
@@ -1317,7 +1498,7 @@ ALTER TABLE ONLY public.order_items
 
 
 --
--- Name: orders orders_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: orders orders_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.orders
@@ -1325,7 +1506,7 @@ ALTER TABLE ONLY public.orders
 
 
 --
--- Name: orders orders_table_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: orders orders_table_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.orders
@@ -1333,7 +1514,7 @@ ALTER TABLE ONLY public.orders
 
 
 --
--- Name: orders orders_waiter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: orders orders_waiter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.orders
@@ -1341,7 +1522,7 @@ ALTER TABLE ONLY public.orders
 
 
 --
--- Name: recipe_ingredients recipe_ingredients_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: recipe_ingredients recipe_ingredients_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.recipe_ingredients
@@ -1349,7 +1530,7 @@ ALTER TABLE ONLY public.recipe_ingredients
 
 
 --
--- Name: recipe_ingredients recipe_ingredients_menu_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: recipe_ingredients recipe_ingredients_menu_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.recipe_ingredients
@@ -1357,7 +1538,39 @@ ALTER TABLE ONLY public.recipe_ingredients
 
 
 --
--- Name: restaurant_tables restaurant_tables_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: reservations reservations_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations
+    ADD CONSTRAINT reservations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+
+
+--
+-- Name: reservations reservations_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations
+    ADD CONSTRAINT reservations_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id);
+
+
+--
+-- Name: reservations reservations_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations
+    ADD CONSTRAINT reservations_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id);
+
+
+--
+-- Name: reservations reservations_table_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations
+    ADD CONSTRAINT reservations_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.restaurant_tables(id);
+
+
+--
+-- Name: restaurant_tables restaurant_tables_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.restaurant_tables
@@ -1365,7 +1578,7 @@ ALTER TABLE ONLY public.restaurant_tables
 
 
 --
--- Name: stock_purchases stock_purchases_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_purchases stock_purchases_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.stock_purchases
@@ -1373,7 +1586,7 @@ ALTER TABLE ONLY public.stock_purchases
 
 
 --
--- Name: stock_purchases stock_purchases_purchased_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_purchases stock_purchases_purchased_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.stock_purchases
@@ -1381,7 +1594,7 @@ ALTER TABLE ONLY public.stock_purchases
 
 
 --
--- Name: users users_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users users_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users
@@ -1392,5 +1605,5 @@ ALTER TABLE ONLY public.users
 -- PostgreSQL database dump complete
 --
 
-\unrestrict jmXTkLZAg5sATjpCTRX70ydUi4FbMuzYMSaocGRZuQqctiDrBkQ7dKRcL9Igjd0
+\unrestrict 7DVqgNz59iVnfUA9wSuHAZgbMYCCYrQWvhfQarLGDwPZ9OArFbxRzlb2gShVjGw
 

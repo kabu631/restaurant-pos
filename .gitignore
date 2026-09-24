@@ -64,5 +64,10 @@ venv.bak/
 .vscode/
 .idea/
 
-# Keep restaurant.db but ignore backups
+# Live/local data: your real restaurant's database and backups never belong in git
+# (data/restaurant_mysql.sql and data/restaurant_postgres.sql are reference dumps —
+#  schema + demo accounts only — and stay tracked)
 data/backups/
+data/restaurant.db
+data/*.sqlite
+data/*.sqlite3

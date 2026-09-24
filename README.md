@@ -18,6 +18,9 @@ Works without internet — all scripts and styles are served locally.
 | Anyone | **Bookings** | Name, phone, guests, time → the best-fitting free table is suggested. When guests arrive, *Seat* opens their order. |
 | Owner | **Dashboard, Reports, Settings** | Today's sales by payment method, VAT reports, staff, menu, tax and printer settings. |
 
+The floor plan shows each table as a simple table-and-chairs icon: **green** when free, **red**
+with two guests seated when occupied, **amber** when booked ahead.
+
 ### Taking orders
 - Tap dishes to add them — instant, even on a slow network. Tap a line to add a kitchen note
   (“No spice”, “Less oil”… set your own quick notes in Settings).
@@ -75,6 +78,12 @@ PAN-only (non-VAT) restaurants turn VAT off in *Settings → Tax & charges*; rat
 To try everything on clean data, `venv\Scripts\python scripts\add_sample_restaurant.py` adds a
 *Sample Restaurant* (code `sample`) with a menu, 14 tables and staff. To move your data between
 PostgreSQL and XAMPP, use `scripts/copy_database.py --from <url> --to <url>`.
+
+`data/restaurant_mysql.sql` and `data/restaurant_postgres.sql` are reference dumps of the current
+schema with only the demo/sample accounts above — handy for setting up a new database by hand
+(`mysql -u root restaurant_pos < data\restaurant_mysql.sql`, or phpMyAdmin → Import) instead of
+letting the app create it on first run. They never contain real restaurant data — regenerate them
+with `python scripts/add_sample_restaurant.py` against a fresh database, never by dumping a live one.
 
 If the POS says its Python environment is broken (after moving the folder to a new PC or
 reinstalling Python), run **install.bat** once — it repairs it.
